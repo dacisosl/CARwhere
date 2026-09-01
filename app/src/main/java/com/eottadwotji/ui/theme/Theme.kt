@@ -97,15 +97,33 @@ object Concrete {
 }
 
 /**
+ * 계기판 디스플레이 폰트 (v3.9) — 층수 숫자·게이지 캡션 등 "계기" 요소 전용.
+ * 라틴/숫자만 포함, 한글은 시스템 폰트로 자동 폴백된다.
+ */
+val DisplayFont = androidx.compose.ui.text.font.FontFamily(
+    androidx.compose.ui.text.font.Font(
+        com.eottadwotji.R.font.chakra_petch_bold,
+        FontWeight.Bold
+    )
+)
+
+/**
  * 타이포 스케일 (DESIGN.md 3절).
  * 층수 숫자가 항상 가장 큰 텍스트. 굵기는 regular/medium 2단계만.
  */
 object AppType {
-    val FloorBig = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.Medium)
+    val FloorBig = TextStyle(
+        fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = DisplayFont
+    )
     val Title = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium)
     val Brand = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium, letterSpacing = 2.sp)
-    val GaugeFloor = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Medium)
-    val LabelCaps = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.5.sp)
+    val GaugeFloor = TextStyle(
+        fontSize = 26.sp, fontWeight = FontWeight.Bold, fontFamily = DisplayFont
+    )
+    val LabelCaps = TextStyle(
+        fontSize = 9.sp, fontWeight = FontWeight.Bold,
+        letterSpacing = 2.sp, fontFamily = DisplayFont
+    )
     val FloorButton = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium)
     val Body = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Normal)
     val BodySmall = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal)

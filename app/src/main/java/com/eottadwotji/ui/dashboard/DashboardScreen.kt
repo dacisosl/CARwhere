@@ -149,14 +149,35 @@ fun DashboardScreen() {
             Text("내차위치", style = AppType.Brand, color = Concrete.TextMain)
             Spacer(Modifier.weight(1f))
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // 계기판 인디케이터 LED: 감지 중이면 글로우 점등 (v3.9)
                 Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .background(
-                            if (detecting) Concrete.Neon else Concrete.TextDim,
-                            CircleShape
+                    modifier = Modifier.size(14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (detecting) {
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .background(
+                                    androidx.compose.ui.graphics.Brush.radialGradient(
+                                        listOf(
+                                            Concrete.Neon.copy(alpha = 0.55f),
+                                            Concrete.Neon.copy(alpha = 0f)
+                                        )
+                                    ),
+                                    CircleShape
+                                )
                         )
-                )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(
+                                if (detecting) Concrete.Neon else Concrete.TextDim,
+                                CircleShape
+                            )
+                    )
+                }
                 Spacer(Modifier.size(6.dp))
                 Text(
                     if (detecting) "감지 중" else "수동 모드",
@@ -240,7 +261,12 @@ fun DashboardScreen() {
                 .padding(18.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularGauge(floor = floor, parked = isParked)
+                // 엔진 스타트 버튼: 누르면 기록 시트 (주차 중=다시 기록, 아니면=수동 기록)
+                CircularGauge(
+                    floor = floor,
+                    parked = isParked,
+                    onPress = { openFloorPicker(context, manual = !isParked) }
+                )
                 Spacer(Modifier.size(20.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     if (isParked) {
@@ -250,7 +276,8 @@ fun DashboardScreen() {
                             style = AppType.Body,
                             color = Concrete.TextMain
                         )
-                        val detail = listOfNotNull(floor, zone, memo).joinToString(" · ")
+                        // 층수는 엔진 버튼에 이미 크게 있음 — 중복 제거 (v3.9)
+                        val detail = listOfNotNull(zone, memo).joinToString(" · ")
                         if (detail.isNotEmpty()) {
                             Text(detail, style = AppType.BodySmall, color = Concrete.TextSub)
                         }

@@ -154,6 +154,7 @@ fun FloorWheel(
                                 floor,
                                 fontSize = if (isCenter) 26.sp else 17.sp,
                                 fontWeight = if (isCenter) FontWeight.Bold else FontWeight.Medium,
+                                fontFamily = com.eottadwotji.ui.theme.DisplayFont,
                                 color = textColor
                             )
                             val suffix = suffixFor(floor)
