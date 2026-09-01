@@ -154,16 +154,20 @@ object ParkingNotification {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        // 필 배경 (불투명 영역이 틴트 대상)
+        // 가로로 긴 캡슐(타원) — 양옆 꽉 차게. 불투명 영역이 틴트 대상:
+        // 상태바에선 시스템이 단색 처리(색 불가), 알림창/잠금화면에선 형광 그린(#97C459)
+        val pillTop = 22f
+        val pillBottom = size - 22f
+        val radius = (pillBottom - pillTop) / 2f // 반지름 = 높이 절반 → 완전한 캡슐
         val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-        canvas.drawRoundRect(2f, 14f, size - 2f, size - 14f, 34f, 34f, pill)
+        canvas.drawRoundRect(0f, pillTop, size.toFloat(), pillBottom, radius, radius, pill)
 
         // 글자를 투명하게 뚫기 — 필 위에 글씨가 도드라져 보이는 효과
         val punch = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
             // 글자 수에 따라 크기 조정 (B3=2자 크게, B12=3자 작게)
-            textSize = if (text.length <= 2) 56f else 42f
+            textSize = if (text.length <= 2) 46f else 36f
             xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
         }
         val y = size / 2f - (punch.descent() + punch.ascent()) / 2f
