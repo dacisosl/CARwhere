@@ -11,6 +11,7 @@ class FloorSelectedReceiver : BroadcastReceiver() {
         val floor = intent.getStringExtra("floor") ?: return
 
         val store = ParkingStore(context)
+        store.recordPressureCalibration(floor) // 기압 추정이 틀렸으면 지형 보정 학습 (v3.7)
         store.setFloor(floor)
         store.rememberFloorForCurrentLocation(floor) // 다음 방문 때 "지난번" 강조용
 

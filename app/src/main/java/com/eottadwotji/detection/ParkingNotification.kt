@@ -97,17 +97,22 @@ object ParkingNotification {
     fun showFloorPickerNotification(
         context: Context,
         floors: List<String>,          // 예: ["B1", "B2", "B3", "B4"]
-        highlightFloor: String?        // 지난번 층 → 첫 번째 버튼으로
+        highlightFloor: String?,       // 지난번 층 → 첫 번째 버튼으로
+        isEstimate: Boolean = false    // v3.7: 기압 추정 층이면 확인 문구 표시
     ) {
         // 지난번 층을 맨 앞으로 정렬 (엄지가 가장 먼저 닿는 버튼)
         val ordered = if (highlightFloor != null)
             listOf(highlightFloor) + floors.filter { it != highlightFloor }
         else floors
 
+        val bodyText = if (isEstimate && highlightFloor != null)
+            "기압 추정 $highlightFloor — 높이에 따라 다를 수 있으니 꼭 확인하세요"
+        else "몇 층에 주차했는지 탭하세요"
+
         val builder = NotificationCompat.Builder(context, CHANNEL_POPUP)
             .setSmallIcon(IconCompat.createWithBitmap(renderTextIcon("P?")))
             .setContentTitle("주차하셨나요?")
-            .setContentText("몇 층에 주차했는지 탭하세요")
+            .setContentText(bodyText)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(floorPickerActivityIntent(context)) // 알림 본문 탭 → 풀 팝업
             .setAutoCancel(true)

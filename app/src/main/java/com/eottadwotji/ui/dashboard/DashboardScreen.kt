@@ -307,7 +307,7 @@ fun DashboardScreen() {
         }
 
         // ── 인라인 설정 카드 (접힘 기본, 아래로 펼침) ──
-        InlineSettingsCard(store = store, onChanged = { refreshKey++ })
+        InlineSettingsCard(store = store, refreshKey = refreshKey, onChanged = { refreshKey++ })
 
         // 디버그 빌드 한정: 감지 시뮬레이션 (에뮬레이터에서 BT 이벤트 재현 불가 대응)
         if (BuildConfig.DEBUG) {
@@ -348,14 +348,15 @@ fun DashboardScreen() {
     }
 }
 
-/** 자주 쓰는 토글 3개만 인라인, 나머지는 "모든 설정"으로 (DESIGN v2) */
+/** 빠른 설정(미리보기): 설정에서 ★로 올린 항목만 표시 (v3.7) */
 @Composable
-private fun InlineSettingsCard(store: ParkingStore, onChanged: () -> Unit) {
+private fun InlineSettingsCard(store: ParkingStore, refreshKey: Int, onChanged: () -> Unit) {
     val context = LocalContext.current
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     var expanded by remember { mutableStateOf(false) }
-    var pressureOn by remember { mutableStateOf(store.pressureAutoDetect) }
-    var widgetAndBar by remember { mutableStateOf(store.displayMode == ParkingStore.DISPLAY_BOTH) }
-    var autoClear by remember { mutableStateOf(store.autoClearOnDeparture) }
+    var version by remember { mutableIntStateOf(0) }
+    val starred = remember(version, refreshKey) { store.starredSettings }
+    val bump = { version++; onChanged() }
 
     Column(
         modifier = Modifier
@@ -381,27 +382,73 @@ private fun InlineSettingsCard(store: ParkingStore, onChanged: () -> Unit) {
 
         if (expanded) {
             Spacer(Modifier.height(6.dp))
-            InlineToggle("자동감지", pressureOn) {
-                pressureOn = it
-                store.pressureAutoDetect = it
-                onChanged()
-            }
-            InlineToggle("홈 위젯 + 상태바", widgetAndBar) {
-                widgetAndBar = it
-                store.displayMode =
-                    if (it) ParkingStore.DISPLAY_BOTH else ParkingStore.DISPLAY_STATUSBAR
-                // 표시 방식 변경 즉시 반영: 상시 알림 + 홈 위젯 (v3.6)
-                if (store.hasActiveParking()) {
-                    ParkingDetectionService.refresh(context)
+
+            if (ParkingStore.STAR_PRESSURE in starred) {
+                InlineToggle("자동감지", store.pressureAutoDetect) {
+                    store.pressureAutoDetect = it
+                    bump()
                 }
-                WidgetUpdater.update(context)
-                onChanged()
             }
-            InlineToggle("출차 시 자동 삭제", autoClear) {
-                autoClear = it
-                store.autoClearOnDeparture = it
-                onChanged()
+            if (ParkingStore.STAR_DISPLAY in starred) {
+                InlineToggle(
+                    "홈 위젯 + 상태바",
+                    store.displayMode == ParkingStore.DISPLAY_BOTH
+                ) {
+                    store.displayMode =
+                        if (it) ParkingStore.DISPLAY_BOTH else ParkingStore.DISPLAY_STATUSBAR
+                    // 표시 방식 변경 즉시 반영: 상시 알림 + 홈 위젯 (v3.6)
+                    if (store.hasActiveParking()) {
+                        ParkingDetectionService.refresh(context)
+                    }
+                    WidgetUpdater.update(context)
+                    bump()
+                }
             }
+            if (ParkingStore.STAR_AUTO_CLEAR in starred) {
+                InlineToggle("출차 시 자동 삭제", store.autoClearOnDeparture) {
+                    store.autoClearOnDeparture = it
+                    bump()
+                }
+            }
+            if (ParkingStore.STAR_CONFIRM in starred) {
+                InlineToggle("등록 확인 카드", store.confirmBeforeDone) {
+                    store.confirmBeforeDone = it
+                    bump()
+                }
+            }
+            if (ParkingStore.STAR_THEME in starred) {
+                InlineValueRow("테마", inlineThemeLabel(store.themeMode)) {
+                    // 탭할 때마다 시스템 → 다크 → 라이트 순환
+                    val next = when (store.themeMode) {
+                        ParkingStore.THEME_SYSTEM -> ParkingStore.THEME_DARK
+                        ParkingStore.THEME_DARK -> ParkingStore.THEME_LIGHT
+                        else -> ParkingStore.THEME_SYSTEM
+                    }
+                    store.themeMode = next
+                    Concrete.apply(next, systemDark)
+                    bump()
+                }
+            }
+            if (ParkingStore.STAR_SHEET_MODE in starred) {
+                InlineValueRow("바텀시트", inlineSheetModeLabel(store.defaultSheetMode)) {
+                    val next = when (store.defaultSheetMode) {
+                        ParkingStore.SHEET_FLOOR -> ParkingStore.SHEET_FLOOR_MEMO
+                        ParkingStore.SHEET_FLOOR_MEMO -> ParkingStore.SHEET_FLOOR_PHOTO
+                        else -> ParkingStore.SHEET_FLOOR
+                    }
+                    store.defaultSheetMode = next
+                    bump()
+                }
+            }
+            if (starred.isEmpty()) {
+                Text(
+                    "설정에서 ★를 누르면 여기에 올라와요",
+                    style = AppType.Hint,
+                    color = Concrete.TextDim,
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+            }
+
             Spacer(Modifier.height(4.dp))
             Text(
                 "모든 설정 →",
@@ -415,6 +462,34 @@ private fun InlineSettingsCard(store: ParkingStore, onChanged: () -> Unit) {
             )
         }
     }
+}
+
+/** 값을 탭해서 순환시키는 빠른 설정 행 (테마·바텀시트 모드용) */
+@Composable
+private fun InlineValueRow(label: String, value: String, onTap: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onTap)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = AppType.BodySmall, color = Concrete.TextBody)
+        Spacer(Modifier.weight(1f))
+        Text(value, style = AppType.BodySmall, color = Concrete.NeonLight)
+    }
+}
+
+private fun inlineThemeLabel(mode: String): String = when (mode) {
+    ParkingStore.THEME_DARK -> "다크"
+    ParkingStore.THEME_LIGHT -> "라이트"
+    else -> "시스템"
+}
+
+private fun inlineSheetModeLabel(mode: String): String = when (mode) {
+    ParkingStore.SHEET_FLOOR -> "층수만"
+    ParkingStore.SHEET_FLOOR_PHOTO -> "층 + 사진"
+    else -> "층 + 메모"
 }
 
 @Composable

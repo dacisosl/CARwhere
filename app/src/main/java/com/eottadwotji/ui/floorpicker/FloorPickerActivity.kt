@@ -182,12 +182,26 @@ class FloorPickerActivity : ComponentActivity() {
             }
         }
 
+        // 확인 카드 설정에 따라: 카드 표시 또는 바로 등록 + 완료 팝업 (v3.7)
+        val confirmOrFinish: () -> Unit = {
+            if (store.confirmBeforeDone) {
+                phase = Phase.CONFIRM
+            } else {
+                android.widget.Toast.makeText(
+                    context,
+                    "${selectedFloor ?: "위치"} 등록됐어요",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+                onDone()
+            }
+        }
+
         var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
         val cameraLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.TakePicture()
         ) { success ->
             if (success) store.photoUri = pendingPhotoUri?.toString()
-            if (confirmAfterCamera) phase = Phase.CONFIRM
+            if (confirmAfterCamera) confirmOrFinish()
         }
         val launchCamera = {
             val uri = PhotoStore.newPhotoUri(context, System.currentTimeMillis())
@@ -198,6 +212,7 @@ class FloorPickerActivity : ComponentActivity() {
         // 층 선택: 저장 → 형광 점등 → 모드별 다음 단계 (메모/사진/닫기)
         val onFloorPicked: (String) -> Unit = { floor ->
             interacted = true
+            store.recordPressureCalibration(floor) // 기압 추정이 틀렸으면 지형 보정 학습 (v3.7)
             store.setFloor(floor)
             store.rememberFloorForCurrentLocation(floor)
             selectedFloor = floor
@@ -215,7 +230,7 @@ class FloorPickerActivity : ComponentActivity() {
                     confirmAfterCamera = true
                     launchCamera()
                 }
-                else -> phase = Phase.CONFIRM // 층수만 모드도 최종 확인은 거친다 (v3.6)
+                else -> confirmOrFinish() // 층수만 모드 — 설정에 따라 확인 카드 또는 즉시 완료
             }
         }
 
@@ -329,9 +344,12 @@ class FloorPickerActivity : ComponentActivity() {
                             )
                             Spacer(Modifier.height(10.dp))
                             Text(
-                                "탭 한 번이면 저장 · 10초 무응답 시 위치만 저장",
+                                if (estimatedFloor != null)
+                                    "기압 추정은 지형 높이에 따라 다를 수 있어요 — 꼭 확인하세요"
+                                else "탭 한 번이면 저장 · 10초 무응답 시 위치만 저장",
                                 style = AppType.Hint,
-                                color = Concrete.TextDim,
+                                color = if (estimatedFloor != null) Concrete.TextSub
+                                else Concrete.TextDim,
                                 modifier = Modifier.align(Alignment.CenterHorizontally)
                             )
                         }
@@ -346,7 +364,7 @@ class FloorPickerActivity : ComponentActivity() {
                                     }
                                     WidgetUpdater.update(context)
                                 }
-                                phase = Phase.CONFIRM
+                                confirmOrFinish()
                             }
                         )
                         Phase.CONFIRM -> ConfirmCard(

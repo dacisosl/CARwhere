@@ -78,6 +78,16 @@ class ParkingStore(context: Context) {
         get() = prefs.getString(KEY_THEME_MODE, THEME_SYSTEM)!!
         set(value) = prefs.edit().putString(KEY_THEME_MODE, value).apply()
 
+    /** v3.7: 층/메모 저장 후 "이렇게 등록했어요" 확인 카드를 띄울지 (끄면 바로 등록 + 완료 팝업) */
+    var confirmBeforeDone: Boolean
+        get() = prefs.getBoolean(KEY_CONFIRM_CARD, true)
+        set(value) = prefs.edit().putBoolean(KEY_CONFIRM_CARD, value).apply()
+
+    /** v3.7: 대시보드 빠른 설정(미리보기)에 별표로 올려둔 설정 키들 */
+    var starredSettings: Set<String>
+        get() = prefs.getStringSet(KEY_STARRED_SETTINGS, DEFAULT_STARRED)!!.toSet()
+        set(value) = prefs.edit().putStringSet(KEY_STARRED_SETTINGS, value).apply()
+
     /** v2: 기압 자동감지 베타 — 추정 층을 미리 선택만, 확정은 항상 사람 탭 (절대 규칙 5) */
     var pressureAutoDetect: Boolean
         get() = prefs.getBoolean(KEY_PRESSURE_AUTO, false)
@@ -216,6 +226,20 @@ class ParkingStore(context: Context) {
         }
     }
 
+    /**
+     * v3.7 기압 보정 학습: 추정 층과 실제 고른 층이 다르면 그 차이를
+     * 이 위치의 보정값에 누적한다 (언덕 위 지형 등 체계적 오차 대응).
+     * 등록된 위치가 있을 때만 — 위치마다 지형이 달라 전역 보정은 무의미.
+     */
+    fun recordPressureCalibration(actualFloor: String) {
+        val estimated = estimatedFloor ?: return
+        if (estimated == actualFloor) return
+        val lot = currentLot() ?: return
+        val diff = ParkingLotProfile.pressureIndex(actualFloor) -
+            ParkingLotProfile.pressureIndex(estimated)
+        saveProfile(lot.copy(pressureOffsetFloors = lot.pressureOffsetFloors + diff))
+    }
+
     // ── 주차장 프로필 ───────────────────────────────────────
 
     fun profiles(): List<ParkingLotProfile> {
@@ -279,6 +303,11 @@ class ParkingStore(context: Context) {
         private const val KEY_APP_ICON_CAR = "app_icon_car"
         private const val KEY_APP_ICON_COLOR = "app_icon_color"
         private const val KEY_THEME_MODE = "theme_mode"
+        private const val KEY_CONFIRM_CARD = "confirm_card"
+        private const val KEY_STARRED_SETTINGS = "starred_settings"
+
+        /** 대시보드 빠른 설정 기본 구성 (기존 인라인 카드와 동일) */
+        val DEFAULT_STARRED = setOf(STAR_PRESSURE, STAR_DISPLAY, STAR_AUTO_CLEAR)
 
         const val DISPLAY_STATUSBAR = "statusbar"
         const val DISPLAY_WIDGET = "widget"
@@ -291,5 +320,13 @@ class ParkingStore(context: Context) {
         const val THEME_SYSTEM = "system"
         const val THEME_DARK = "dark"
         const val THEME_LIGHT = "light"
+
+        /** v3.7: 별표(빠른 설정) 가능한 설정 키 */
+        const val STAR_PRESSURE = "pressure"     // 자동감지 토글
+        const val STAR_DISPLAY = "display"       // 홈 위젯 + 상태바 토글
+        const val STAR_AUTO_CLEAR = "autoclear"  // 출차 시 자동 삭제 토글
+        const val STAR_THEME = "theme"           // 테마 순환
+        const val STAR_SHEET_MODE = "sheetmode"  // 바텀시트 기본 동작 순환
+        const val STAR_CONFIRM = "confirm"       // 등록 확인 카드 토글
     }
 }

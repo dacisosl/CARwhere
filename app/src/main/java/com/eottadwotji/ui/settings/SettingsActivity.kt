@@ -12,6 +12,8 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -93,6 +95,7 @@ private fun SettingsScreen(onClose: () -> Unit) {
     val myCarName = remember(refresh) { store.myCarName }
     val overlayGranted = remember(refresh) { Settings.canDrawOverlays(context) }
     val themeMode = remember(refresh) { store.themeMode }
+    val confirmCard = remember(refresh) { store.confirmBeforeDone }
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
 
     var activeSheet by remember { mutableStateOf<String?>(null) }
@@ -121,87 +124,132 @@ private fun SettingsScreen(onClose: () -> Unit) {
             Text("설정", style = AppType.Title, color = Concrete.TextMain)
         }
 
+        // v3.7: 아코디언 구조 — 섹션을 누르면 그 자리에서 펼쳐진다. ★는 대시보드 빠른 설정 등록
+        var openSections by remember { mutableStateOf(setOf("위치")) }
+        val toggleSection: (String) -> Unit = { name ->
+            openSections =
+                if (name in openSections) openSections - name else openSections + name
+        }
+        val starChanged = { refresh++; Unit }
+
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // ── 1. 위치 ──
-            SectionLabel("위치")
-            profiles.forEach { profile ->
-                SettingRow(
-                    profile.name,
-                    floorsSummary(profile.floors) +
-                        if (profile.latitude != null) " · 위치 등록됨" else ""
-                ) { editingLot = profile }
-            }
-            SettingRow("+ 위치 추가", "") { creatingLot = true }
-
-            // ── 2. 바텀시트 ──
-            SectionLabel("바텀시트")
-            SettingRow("기본 동작", sheetModeLabel(sheetMode)) { activeSheet = "sheet_mode" }
             Text(
-                "위치마다 다르게 하려면 위 위치를 눌러 바꿔주세요",
+                "★를 누르면 대시보드 빠른 설정에 올라가요",
                 style = AppType.Hint,
                 color = Concrete.TextDim,
-                modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
             )
 
-            // ── 3. 알림 ──
-            SectionLabel("알림")
-            SettingRow("표시 방식", displayModeLabel(displayMode)) { activeSheet = "display" }
-
-            // ── 4. 감지 ──
-            SectionLabel("감지")
-            SwitchRow("자동감지", pressureOn) {
-                store.pressureAutoDetect = it
-                refresh++
+            AccordionSection("위치", "위치" in openSections, { toggleSection("위치") }) {
+                profiles.forEach { profile ->
+                    SettingRow(
+                        profile.name,
+                        floorsSummary(profile.floors) +
+                            if (profile.latitude != null) " · 위치 등록됨" else ""
+                    ) { editingLot = profile }
+                }
+                SettingRow("+ 위치 추가", "") { creatingLot = true }
             }
-            SettingRow("내 차 블루투스", myCarName ?: "미지정") { activeSheet = "car" }
-            SettingRow(
-                "바텀시트 팝업 (다른 앱 위)",
-                if (overlayGranted) "켜짐" else "꺼짐 — 알림으로 대체"
-            ) {
-                runCatching {
-                    context.startActivity(
-                        Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:${context.packageName}")
+
+            AccordionSection("바텀시트", "바텀시트" in openSections, { toggleSection("바텀시트") }) {
+                SettingRow(
+                    "기본 동작", sheetModeLabel(sheetMode),
+                    star = { StarToggle(store, ParkingStore.STAR_SHEET_MODE, starChanged) }
+                ) { activeSheet = "sheet_mode" }
+                SettingRow(
+                    "등록 확인",
+                    if (confirmCard) "확인 카드 띄우기" else "바로 등록",
+                    star = { StarToggle(store, ParkingStore.STAR_CONFIRM, starChanged) }
+                ) { activeSheet = "confirm_card" }
+                Text(
+                    "위치마다 다르게 하려면 위 위치를 눌러 바꿔주세요",
+                    style = AppType.Hint,
+                    color = Concrete.TextDim,
+                    modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                )
+            }
+
+            AccordionSection("알림", "알림" in openSections, { toggleSection("알림") }) {
+                SettingRow(
+                    "표시 방식", displayModeLabel(displayMode),
+                    star = { StarToggle(store, ParkingStore.STAR_DISPLAY, starChanged) }
+                ) { activeSheet = "display" }
+            }
+
+            AccordionSection("감지", "감지" in openSections, { toggleSection("감지") }) {
+                SwitchRow(
+                    "자동감지", pressureOn,
+                    star = { StarToggle(store, ParkingStore.STAR_PRESSURE, starChanged) }
+                ) {
+                    store.pressureAutoDetect = it
+                    refresh++
+                }
+                Text(
+                    "기압 추정은 지형 높이에 따라 다를 수 있어요 — 층을 고치면 위치별로 자동 보정돼요",
+                    style = AppType.Hint,
+                    color = Concrete.TextDim,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+                SettingRow("내 차 블루투스", myCarName ?: "미지정") { activeSheet = "car" }
+                SettingRow(
+                    "바텀시트 팝업 (다른 앱 위)",
+                    if (overlayGranted) "켜짐" else "꺼짐 — 알림으로 대체"
+                ) {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}")
+                            )
                         )
-                    )
+                    }
                 }
             }
 
-            // ── 5. 앱 아이콘 ──
-            SectionLabel("앱 아이콘")
-            SettingRow(
-                "차량 아이콘",
-                if (iconCar != null && iconColor != null)
-                    "${AppIconSwitcher.carLabel(iconCar)} · ${AppIconSwitcher.colorLabel(iconColor)}"
-                else "기본 (흰색 중형차)"
-            ) { showIconModal = true }
-
-            // ── 6. 기타 ──
-            SectionLabel("기타")
-            SettingRow("테마", themeModeLabel(themeMode)) { activeSheet = "theme" }
-            UpdateCheckRow()
-            SwitchRow("출차 시 자동 삭제", autoClear) {
-                store.autoClearOnDeparture = it
-                refresh++
+            AccordionSection("앱 아이콘", "앱 아이콘" in openSections, { toggleSection("앱 아이콘") }) {
+                SettingRow(
+                    "차량 아이콘",
+                    if (iconCar != null && iconColor != null)
+                        "${AppIconSwitcher.carLabel(iconCar)} · ${AppIconSwitcher.colorLabel(iconColor)}"
+                    else "기본 (흰색 중형차)"
+                ) { showIconModal = true }
             }
-            SectionLabel("배터리 사용 안내")
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+
+            AccordionSection("기타", "기타" in openSections, { toggleSection("기타") }) {
+                SettingRow(
+                    "테마", themeModeLabel(themeMode),
+                    star = { StarToggle(store, ParkingStore.STAR_THEME, starChanged) }
+                ) { activeSheet = "theme" }
+                UpdateCheckRow()
+                SwitchRow(
+                    "출차 시 자동 삭제", autoClear,
+                    star = { StarToggle(store, ParkingStore.STAR_AUTO_CLEAR, starChanged) }
+                ) {
+                    store.autoClearOnDeparture = it
+                    refresh++
+                }
+            }
+
+            AccordionSection(
+                "배터리 사용 안내", "배터리" in openSections, { toggleSection("배터리") }
             ) {
-                BatteryInfoLine("대기 중", "블루투스 신호 수신만 — 폴링 없음")
-                BatteryInfoLine("위치", "주차 확정 순간 1회만 — 상시 추적 없음")
-                BatteryInfoLine("기압 센서", "자동감지 켠 경우, 주행 중에만 초당 1회")
-                BatteryInfoLine("위젯", "주차 상태가 바뀔 때만 갱신")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    BatteryInfoLine("대기 중", "블루투스 신호 수신만 — 폴링 없음")
+                    BatteryInfoLine("위치", "주차 확정 순간 1회만 — 상시 추적 없음")
+                    BatteryInfoLine("기압 센서", "자동감지 켠 경우, 주행 중에만 초당 1회")
+                    BatteryInfoLine("위젯", "주차 상태가 바뀔 때만 갱신")
+                }
             }
 
             Spacer(Modifier.height(24.dp))
@@ -251,6 +299,16 @@ private fun SettingsScreen(onClose: () -> Unit) {
                 store.themeMode = it
                 com.eottadwotji.ui.theme.Concrete.apply(it, systemDark) // 전 화면 즉시 반영
             },
+            onDismiss = { activeSheet = null; refresh++ }
+        )
+        "confirm_card" -> OptionSheet(
+            title = "등록 확인",
+            options = listOf(
+                "confirm" to "확인 카드 띄우기 — 맞아요/수정하기",
+                "instant" to "바로 등록 — 완료 팝업만"
+            ),
+            current = if (confirmCard) "confirm" else "instant",
+            onSelect = { store.confirmBeforeDone = it == "confirm" },
             onDismiss = { activeSheet = null; refresh++ }
         )
         "car" -> CarPickerSheet(store, onDismiss = { activeSheet = null; refresh++ })
@@ -626,7 +684,8 @@ private fun LotModal(
                                     memos = memos.filterKeys { it in selected }
                                         .filterValues { it.isNotBlank() },
                                     lastFloor = profile?.lastFloor,
-                                    sheetMode = sheetMode
+                                    sheetMode = sheetMode,
+                                    pressureOffsetFloors = profile?.pressureOffsetFloors ?: 0
                                 )
                             )
                             onDismiss()
@@ -687,6 +746,66 @@ private fun modalFieldColors() = OutlinedTextFieldDefaults.colors(
 
 // ── 행 컴포넌트 ─────────────────────────────────────────────
 
+/** v3.7 아코디언 섹션: 헤더를 누르면 그 자리에서 내려온다 */
+@Composable
+private fun AccordionSection(
+    title: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Concrete.BgDeep, RoundedCornerShape(12.dp))
+            .animateContentSize(animationSpec = tween(180))
+            .padding(horizontal = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 4.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, style = AppType.Body, color = Concrete.TextMain)
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (expanded) "▴" else "▾",
+                style = AppType.BodySmall,
+                color = Concrete.TextDim
+            )
+        }
+        if (expanded) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+/** ★ 토글: 이 설정을 대시보드 빠른 설정(미리보기)에 올린다 (v3.7) */
+@Composable
+private fun StarToggle(store: ParkingStore, key: String, onChanged: () -> Unit) {
+    val starred = key in store.starredSettings
+    Text(
+        if (starred) "★" else "☆",
+        style = AppType.Body,
+        color = if (starred) Concrete.Neon else Concrete.TextDim,
+        modifier = Modifier
+            .clickable {
+                store.starredSettings =
+                    if (starred) store.starredSettings - key
+                    else store.starredSettings + key
+                onChanged()
+            }
+            .padding(start = 12.dp, top = 2.dp, bottom = 2.dp)
+    )
+}
+
 @Composable
 private fun SectionLabel(label: String) {
     Text(
@@ -702,6 +821,7 @@ private fun SettingRow(
     label: String,
     value: String,
     enabled: Boolean = true,
+    star: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -719,11 +839,17 @@ private fun SettingRow(
         )
         Spacer(Modifier.weight(1f))
         Text(value, style = AppType.BodySmall, color = Concrete.TextSub)
+        star?.invoke()
     }
 }
 
 @Composable
-private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun SwitchRow(
+    label: String,
+    checked: Boolean,
+    star: (@Composable () -> Unit)? = null,
+    onChange: (Boolean) -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -744,6 +870,7 @@ private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
                 uncheckedBorderColor = Concrete.Border
             )
         )
+        star?.invoke()
     }
 }
 

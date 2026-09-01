@@ -7,8 +7,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
-import androidx.glance.Image
-import androidx.glance.ImageProvider
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.cornerRadius
@@ -20,7 +18,6 @@ import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
-import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
@@ -33,7 +30,6 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.eottadwotji.MainActivity
-import com.eottadwotji.R
 import com.eottadwotji.data.ParkingStore
 import com.eottadwotji.ui.floorpicker.FloorPickerActivity
 import kotlinx.coroutines.CoroutineScope
@@ -100,33 +96,37 @@ private fun PillContent(parked: Boolean, floor: String?, time: String, lotName: 
                 if (parked) actionStartActivity<MainActivity>()
                 else actionStartActivity<FloorPickerActivity>()
             )
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 실사 세단 에셋 (앱 아이콘과 동일한 아트)
-        Image(
-            provider = ImageProvider(R.drawable.ic_fg_sedan_white),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = GlanceModifier.size(52.dp).cornerRadius(14.dp)
-        )
-        Spacer(GlanceModifier.width(10.dp))
         if (parked) {
+            // 층수 크게 (네온) — 왼쪽
+            Text(
+                floor ?: "P",
+                style = TextStyle(
+                    color = ColorProvider(Neon),
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                maxLines = 1
+            )
+            Spacer(GlanceModifier.width(14.dp))
+            // 오른쪽: 위치(위) + 시간(아래)
             Column {
                 Text(
-                    floor ?: "P",
+                    (lotName ?: "주차 중").take(8),
                     style = TextStyle(
-                        color = ColorProvider(Neon),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold
+                        color = ColorProvider(TextMain),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
                     ),
                     maxLines = 1
                 )
                 Text(
-                    listOfNotNull(time, lotName).joinToString(" · "),
+                    time,
                     style = TextStyle(
                         color = ColorProvider(TextBody),
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     ),
                     maxLines = 1
                 )
@@ -181,18 +181,11 @@ private fun GaugeContent(parked: Boolean, floor: String?, time: String) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Image(
-                provider = ImageProvider(R.drawable.ic_fg_sedan_white),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = GlanceModifier.size(34.dp).cornerRadius(10.dp)
-            )
-            Spacer(GlanceModifier.height(2.dp))
             Text(
                 if (parked) (floor ?: "P") else "—",
                 style = TextStyle(
                     color = ColorProvider(if (parked) Neon else TextDim),
-                    fontSize = 20.sp,
+                    fontSize = 26.sp,
                     fontWeight = FontWeight.Bold
                 )
             )
@@ -200,7 +193,7 @@ private fun GaugeContent(parked: Boolean, floor: String?, time: String) {
                 if (parked) time else "기록",
                 style = TextStyle(
                     color = ColorProvider(if (parked) TextBody else TextDim),
-                    fontSize = 9.sp
+                    fontSize = 11.sp
                 )
             )
         }

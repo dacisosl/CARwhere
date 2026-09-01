@@ -170,30 +170,33 @@ class ParkingDetectionService : Service(), SensorEventListener {
         stopIfNothingToShow(keepNotification = keepDepartedNotification)
     }
 
-    /** 주차 확정: 기압 추정 → GPS 좌표 1회 저장 → 바텀시트(또는 알림 폴백) */
+    /** 주차 확정: GPS 좌표 1회 저장 → 기압 추정(위치 보정 반영) → 바텀시트(또는 알림 폴백) */
     private fun confirmParked() {
         val store = ParkingStore(this)
         store.startParking(timestampMs = System.currentTimeMillis())
 
-        // 기압 추정 층 계산 후 센서 즉시 해제 (하차했으니 더 볼 필요 없음)
-        store.estimatedFloor = estimateFloorFromPressure(store)
-        stopPressureSampling()
-
-        // lastLocation 1회 조회 후 팝업 — 좌표가 있어야 프로필(지난번 층) 매칭이 된다.
+        // lastLocation 1회 조회 후 팝업 — 좌표가 있어야 프로필(지난번 층·기압 보정) 매칭이 된다.
         // 실패해도 팝업은 반드시 떠야 하므로 completion 콜백에서 이어간다.
-        fetchLastLocationOnce(store) { showFloorPicker(store) }
+        fetchLastLocationOnce(store) {
+            // 기압 추정은 위치 매칭 후에 — 등록된 위치면 학습된 지형 보정을 더한다 (v3.7)
+            store.estimatedFloor = estimateFloorFromPressure(store)
+            stopPressureSampling()
+            showFloorPicker(store)
+        }
         WidgetUpdater.update(this)
     }
 
     /**
      * 주행 시작 대비 기압 상승분으로 지하 층수 추정.
      * ±1층 오차가 있는 "추정"일 뿐 — 바텀시트에서 미리 선택 + "기압 추정" 라벨만 담당.
+     * 등록된 위치의 pressureOffsetFloors(지형 보정 학습값)를 더한다 (v3.7).
      */
     private fun estimateFloorFromPressure(store: ParkingStore): String? {
         val start = pressureAtDriveStart ?: return null
         val now = smoothedPressure ?: return null
         // 아래로 갈수록 기압 증가: 양수 = 지하 n층, 0 이하 = 지상 (0→1F, -1→2F …)
-        val floorsBelow = ((now - start) / PRESSURE_HPA_PER_FLOOR).roundToInt()
+        var floorsBelow = ((now - start) / PRESSURE_HPA_PER_FLOOR).roundToInt()
+        floorsBelow += store.currentLot()?.pressureOffsetFloors ?: 0
         val candidate = if (floorsBelow >= 1) "B$floorsBelow" else "${1 - floorsBelow}F"
         // 현재 층 구성에 없는 층을 제안하면 혼란 → 목록 안에 있을 때만
         return candidate.takeIf { it in store.floorsForCurrentLocation() }
@@ -233,7 +236,8 @@ class ParkingDetectionService : Service(), SensorEventListener {
             ParkingNotification.showFloorPickerNotification(
                 context = this,
                 floors = store.floorsForCurrentLocation(),
-                highlightFloor = store.estimatedFloor ?: store.lastFloorForCurrentLocation()
+                highlightFloor = store.estimatedFloor ?: store.lastFloorForCurrentLocation(),
+                isEstimate = store.estimatedFloor != null
             )
         }
 

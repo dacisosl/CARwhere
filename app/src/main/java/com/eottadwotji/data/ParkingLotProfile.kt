@@ -23,7 +23,13 @@ data class ParkingLotProfile(
     val memos: Map<String, String>,
     val lastFloor: String?,
     /** v3: 이 위치 전용 바텀시트 모드 (null이면 전역 기본값) — SHEET_* 상수 */
-    val sheetMode: String? = null
+    val sheetMode: String? = null,
+    /**
+     * v3.7: 기압 추정 보정 (층 단위). 지형이 높은 곳(예: 언덕 위 집)은 진입 기준
+     * 지하1층이 실제 표기 1층인 식으로 체계적으로 어긋난다 — 사용자가 추정과 다른
+     * 층을 고르면 그 차이를 학습해 다음 추정에 더한다.
+     */
+    val pressureOffsetFloors: Int = 0
 ) {
 
     /** 좌표가 이 주차장 반경(150m) 안인지 판정 */
@@ -41,6 +47,7 @@ data class ParkingLotProfile(
         put("memos", JSONObject(memos as Map<*, *>))
         if (lastFloor != null) put("lastFloor", lastFloor)
         if (sheetMode != null) put("sheetMode", sheetMode)
+        if (pressureOffsetFloors != 0) put("pressureOffset", pressureOffsetFloors)
     }
 
     companion object {
@@ -64,6 +71,15 @@ data class ParkingLotProfile(
         fun sortFloors(floors: List<String>): List<String> =
             floors.distinct().sortedBy { floorOrder(it) }
 
+        /**
+         * 기압 추정 좌표계 인덱스: "지상 진입 기준 아래로 몇 층인가".
+         * B1→1, B2→2 … / 1F→0, 2F→-1 … (0층이 없어 floorOrder와는 지상에서 1 어긋남)
+         */
+        fun pressureIndex(floor: String): Int {
+            val number = floor.filter { it.isDigit() }.toIntOrNull() ?: 0
+            return if (isBasement(floor)) number else 1 - number
+        }
+
         fun fromJson(json: JSONObject): ParkingLotProfile {
             val floors = mutableListOf<String>()
             val floorsJson = json.optJSONArray("floors") ?: JSONArray()
@@ -81,7 +97,8 @@ data class ParkingLotProfile(
                 floors = if (floors.isEmpty()) DEFAULT_FLOORS else sortFloors(floors),
                 memos = memos,
                 lastFloor = json.optString("lastFloor").ifEmpty { null },
-                sheetMode = json.optString("sheetMode").ifEmpty { null }
+                sheetMode = json.optString("sheetMode").ifEmpty { null },
+                pressureOffsetFloors = json.optInt("pressureOffset", 0)
             )
         }
 
