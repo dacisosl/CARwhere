@@ -68,7 +68,7 @@ object UpdateChecker {
         val dm = appContext.getSystemService(DownloadManager::class.java)
 
         val request = DownloadManager.Request(Uri.parse(update.apkUrl))
-            .setTitle("내차위치 ${update.label}")
+            .setTitle("어따뒀지 ${update.label}")
             .setDestinationInExternalFilesDir(
                 appContext, Environment.DIRECTORY_DOWNLOADS, "naechawichi-update.apk"
             )

@@ -146,7 +146,7 @@ fun DashboardScreen() {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("내차위치", style = AppType.Brand, color = Concrete.TextMain)
+            Text("어따뒀지", style = AppType.Brand, color = Concrete.TextMain)
             Spacer(Modifier.weight(1f))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 계기판 인디케이터 LED: 감지 중이면 글로우 점등 (v3.9)

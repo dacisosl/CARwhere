@@ -88,7 +88,7 @@ object ParkingNotification {
     fun buildIdleNotification(context: Context): Notification =
         NotificationCompat.Builder(context, CHANNEL_IDLE)
             .setSmallIcon(IconCompat.createWithBitmap(renderTextIcon("P")))
-            .setContentTitle("내차위치 감지 중")
+            .setContentTitle("어따뒀지 감지 중")
             .setContentIntent(mainActivityIntent(context))
             .setOngoing(true)
             .setShowWhen(false)

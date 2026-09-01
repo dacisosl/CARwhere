@@ -44,5 +44,5 @@ jobs:
           cp "$APK" naechawichi-v$VERSION_CODE.apk
           gh release create "v$VERSION_CODE" "naechawichi-v$VERSION_CODE.apk" \
             --latest \
-            --title "내차위치 v$VERSION_CODE" \
+            --title "어따뒀지 v$VERSION_CODE" \
             --notes "자동 빌드 (커밋 ${GITHUB_SHA::7})"

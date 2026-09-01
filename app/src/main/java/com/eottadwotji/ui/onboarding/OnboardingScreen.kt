@@ -317,7 +317,7 @@ private fun PermissionStep(onNext: () -> Unit) {
                 ) {
                     Text("삼성 기기 한 가지 더", style = AppType.Body, color = Concrete.TextMain)
                     Text(
-                        "설정 > 배터리 > 백그라운드 사용 제한에서\n\"절전 예외 앱\"에 내차위치를 추가해 주세요.\n안 하면 감지가 중간에 꺼질 수 있어요.",
+                        "설정 > 배터리 > 백그라운드 사용 제한에서\n\"절전 예외 앱\"에 어따뒀지를 추가해 주세요.\n안 하면 감지가 중간에 꺼질 수 있어요.",
                         style = AppType.BodySmall,
                         color = Concrete.TextSub
                     )

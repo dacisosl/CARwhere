@@ -41,7 +41,7 @@ import kotlinx.coroutines.delay
  * 타임라인 (~2.2초 고정):
  *   0.0s  검은 화면에서 주차 아트 슬라이드-인 프레임 재생 (splash_f00~f11)
  *   1.0s  안착 홀드 + 살짝 줌 (시네마틱 settle)
- *   1.2s  "내차위치" 네온 타이포 점등 — 형광등 플리커 (꺼짐→번쩍→꺼짐→점등)
+ *   1.2s  "어따뒀지" 네온 타이포 점등 — 형광등 플리커 (꺼짐→번쩍→꺼짐→점등)
  *   1.9s  전체 페이드아웃 → 대시보드
  *
  * 프로세스당 1회만 재생 (SplashGate).
@@ -118,7 +118,7 @@ fun CinematicSplash(onDone: () -> Unit) {
             )
             Spacer(Modifier.height(28.dp))
             Text(
-                "내차위치",
+                "어따뒀지",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = DisplayFont,
