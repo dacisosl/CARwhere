@@ -8,9 +8,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -123,6 +126,18 @@ fun EottadwotjiTheme(content: @Composable () -> Unit) {
     }
 
     val p = Concrete.palette
+
+    // 라이트 팔레트에서는 상태바·내비바 아이콘을 어둡게 (v3.6 — 흰 시계가 안 보이던 문제)
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            (view.context as? android.app.Activity)?.window?.let { window ->
+                val controller = WindowCompat.getInsetsController(window, view)
+                controller.isAppearanceLightStatusBars = p == LightPalette
+                controller.isAppearanceLightNavigationBars = p == LightPalette
+            }
+        }
+    }
     val scheme = if (p == LightPalette) {
         lightColorScheme(
             primary = p.neon, onPrimary = p.neonDeep,

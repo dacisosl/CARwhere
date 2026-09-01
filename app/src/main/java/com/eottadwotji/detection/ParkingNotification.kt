@@ -19,53 +19,81 @@ import com.eottadwotji.MainActivity
 import com.eottadwotji.ui.floorpicker.FloorPickerActivity
 
 /**
- * 알림 3종:
- * 1. Idle: 포그라운드 서비스 유지용 최소 알림 (감지 대기 중, 최저 중요도)
- * 2. FloorPicker: 하차 감지 시 층수 버튼이 달린 확장 알림 — 앱 안 열고 알림에서 바로 선택
- * 3. Parked: 층수 저장 후 상태바에 "P·B3" 텍스트 아이콘으로 상시 표시
+ * 알림 정책 (v3.6 안정화):
  *
- * 상태바 텍스트 아이콘 트릭:
- * setSmallIcon은 리소스만 받지만 IconCompat.createWithBitmap으로
- * "P·B3" 같은 텍스트를 그린 비트맵을 동적 생성해서 넣을 수 있음.
+ * 상시 알림은 딱 1개 — SERVICE_NOTIFICATION_ID 하나를 상태에 따라 교체한다.
+ *   - 대기: "감지 대기" 채널 (IMPORTANCE_MIN → 상태바 아이콘 없음, 알림창 최소화 영역)
+ *   - 주차: "주차 위치 표시" 채널 (P·B3 캡슐 아이콘 + colorized 형광그린 배경)
+ * 이전처럼 알림 2개가 공존하면 시스템이 자동 그룹핑해서 상태바 캡슐이
+ * 그룹 아이콘 뒤로 숨는다 — "어떨 때는 뜨고 어떨 때는 안 뜨는" 원인.
  *
- * 알림 액션 3개 제한 대응 (PRD 리스크 3):
- * 지난번 층 + 다음 층 1개 + "전체 보기" → 나머지 층은 풀 팝업에서 선택.
+ * 하차 감지 헤드업(POPUP_NOTIFICATION_ID)만 별도 ID — 10초 뒤 자동 소멸.
+ *
+ * 채널은 v2로 재생성: 예전 설치에서 굳어진 채널 중요도/배지 설정을 리셋하고
+ * setShowBadge(false)로 런처 앱 아이콘 배지(점)를 막는다.
+ *
+ * 상태바 아이콘 색: Android는 모든 앱의 상태바 아이콘을 강제로 단색(흰/검) 처리한다.
+ * 형광그린은 OS 제약상 상태바에선 불가능 — 대신 알림창에서 colorized로 형광 배경.
  */
 object ParkingNotification {
 
     const val SERVICE_NOTIFICATION_ID = 1
-    const val PARKED_NOTIFICATION_ID = 2
+    const val POPUP_NOTIFICATION_ID = 2
 
-    private const val CHANNEL_IDLE = "idle"       // IMPORTANCE_MIN: 상태바에 안 보임
-    private const val CHANNEL_POPUP = "popup"     // IMPORTANCE_HIGH: 헤드업 팝업
-    private const val CHANNEL_PARKED = "parked"   // IMPORTANCE_LOW: 조용히 상시 표시
+    private const val CHANNEL_IDLE = "idle_v2"     // IMPORTANCE_MIN: 상태바에 안 보임
+    private const val CHANNEL_POPUP = "popup_v2"   // IMPORTANCE_HIGH: 헤드업 팝업
+    private const val CHANNEL_PARKED = "parked_v2" // IMPORTANCE_LOW: 조용히 상시 표시
 
     private const val FLOOR_PICKER_TIMEOUT_MS = 10_000L
 
+    private const val NEON = 0xFFAEEA00.toInt()
+
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
+        // 예전 채널 삭제 — 사용자가 바꿨거나 구버전에서 잘못 만들어진 중요도를 리셋
+        listOf("idle", "popup", "parked").forEach { nm.deleteNotificationChannel(it) }
+
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_IDLE, "감지 대기", NotificationManager.IMPORTANCE_MIN)
+                .apply { setShowBadge(false) }
         )
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_POPUP, "주차 팝업", NotificationManager.IMPORTANCE_HIGH)
+                .apply { setShowBadge(false) }
         )
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_PARKED, "주차 위치 표시", NotificationManager.IMPORTANCE_LOW)
+                .apply { setShowBadge(false) }
         )
     }
 
-    /** 1. 포그라운드 서비스 유지용 (사용자 눈에 거의 안 띔) */
+    /** 서비스 시작 시 현재 상태에 맞는 상시 알림 — 재시작/재부팅 후에도 표시 일관성 유지 */
+    fun buildServiceNotification(context: Context): Notification {
+        val store = com.eottadwotji.data.ParkingStore(context)
+        return if (store.hasActiveParking() && store.displayMode != com.eottadwotji.data.ParkingStore.DISPLAY_WIDGET) {
+            buildParkedNotification(context, store.currentFloor(), store.parkingStartedAt())
+        } else {
+            buildIdleNotification(context)
+        }
+    }
+
+    /**
+     * 감지 진행용 임시 알림 — 하차 판정·층 선택 대기, 주행 중 기압 샘플링 동안만.
+     * 대기 상태에서는 서비스 자체가 없으므로 이 알림도 없다 (v3.6).
+     */
     fun buildIdleNotification(context: Context): Notification =
         NotificationCompat.Builder(context, CHANNEL_IDLE)
             .setSmallIcon(IconCompat.createWithBitmap(renderTextIcon("P")))
-            .setContentTitle("내차위치 감지 대기 중")
+            .setContentTitle("내차위치 감지 중")
             .setContentIntent(mainActivityIntent(context))
             .setOngoing(true)
             .setShowWhen(false)
+            .setNumber(0)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setSilent(true)
             .build()
 
-    /** 2. 하차 감지 팝업: 층수 액션 버튼 (지난번 층 + 1개 + 전체 보기) */
+    /** 하차 감지 팝업: 층수 액션 버튼 (지난번 층 + 1개 + 전체 보기) */
     fun showFloorPickerNotification(
         context: Context,
         floors: List<String>,          // 예: ["B1", "B2", "B3", "B4"]
@@ -83,6 +111,7 @@ object ParkingNotification {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(floorPickerActivityIntent(context)) // 알림 본문 탭 → 풀 팝업
             .setAutoCancel(true)
+            .setNumber(0)
             .setTimeoutAfter(FLOOR_PICKER_TIMEOUT_MS) // 10초 후 자동으로 사라짐
 
         // 알림 액션 버튼은 3개 제한 → 층 2개 + "전체 보기"
@@ -93,24 +122,38 @@ object ParkingNotification {
         builder.addAction(0, "전체 보기", floorPickerActivityIntent(context))
 
         context.getSystemService(NotificationManager::class.java)
-            .notify(PARKED_NOTIFICATION_ID, builder.build())
+            .notify(POPUP_NOTIFICATION_ID, builder.build())
     }
 
     /**
-     * 3. 주차 확정 후 상시 표시: 상태바에 "P·B3".
-     * 상태바 아이콘은 시스템이 단색 처리하므로 형광 필은 위젯/확장 뷰 액센트로 보완 (DESIGN v2).
-     * 확장 뷰에 "B3 · C구역 · 기둥 27 옆"까지 표시.
+     * 주차 확정: 상시 알림(서비스 알림)을 "P·B3" 캡슐로 교체.
+     * 알림이 항상 1개뿐이라 상태바 캡슐이 그룹 아이콘에 가려질 일이 없다.
+     * 알림창에서는 colorized로 형광그린 배경 (상태바 아이콘 자체는 OS가 단색 강제).
      */
     fun showParkedNotification(context: Context, floor: String?, startedAtMs: Long = 0L) {
+        val nm = context.getSystemService(NotificationManager::class.java)
+        // 하차 헤드업이 남아 있으면 정리 — 상시 알림 1개 원칙
+        nm.cancel(POPUP_NOTIFICATION_ID)
+
+        // v3 알림 설정: "홈 위젯만"이면 상시 캡슐을 띄우지 않는다 (위젯이 담당).
+        // 서비스가 떠 있으면 층 선택 타임아웃 시점에 스스로 정리한다.
+        val store = com.eottadwotji.data.ParkingStore(context)
+        if (store.displayMode == com.eottadwotji.data.ParkingStore.DISPLAY_WIDGET) {
+            nm.cancel(SERVICE_NOTIFICATION_ID)
+            return
+        }
+        nm.notify(SERVICE_NOTIFICATION_ID, buildParkedNotification(context, floor, startedAtMs))
+    }
+
+    private fun buildParkedNotification(
+        context: Context,
+        floor: String?,
+        startedAtMs: Long
+    ): Notification {
         val statusText = if (floor != null) "P·$floor" else "P"
         val icon = IconCompat.createWithBitmap(renderTextIcon(floor ?: "P"))
 
-        // v3 알림 설정: "홈 위젯만"이면 상시 알림은 띄우지 않는다 (위젯이 담당)
         val store = com.eottadwotji.data.ParkingStore(context)
-        if (store.displayMode == com.eottadwotji.data.ParkingStore.DISPLAY_WIDGET) {
-            dismissParkedNotification(context)
-            return
-        }
         val detailLine = listOfNotNull(
             floor,
             store.currentZone(),
@@ -118,7 +161,7 @@ object ParkingNotification {
             store.currentLot()?.name
         ).joinToString(" · ").ifEmpty { "위치만 저장됨" }
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_PARKED)
+        return NotificationCompat.Builder(context, CHANNEL_PARKED)
             .setSmallIcon(icon)
             .setContentTitle(if (floor != null) "$floor 에 주차됨" else "주차 위치 저장됨")
             .setContentText(detailLine)
@@ -126,36 +169,35 @@ object ParkingNotification {
                 NotificationCompat.BigTextStyle()
                     .bigText("$detailLine\n탭하면 상세 보기 · 출발하면 자동으로 사라져요")
             )
-            .setColor(0xFFAEEA00.toInt()) // 네온 액센트 (아이콘/앱명 틴트)
+            .setColor(NEON)
+            .setColorized(true) // 포그라운드 서비스 알림 → 알림창 배경 자체가 형광그린
             .setContentIntent(mainActivityIntent(context))
             .setOngoing(true)          // 스와이프로 지워지지 않음
             .setShowWhen(startedAtMs > 0L)
             .setWhen(if (startedAtMs > 0L) startedAtMs else System.currentTimeMillis())
             .setUsesChronometer(startedAtMs > 0L) // 주차 경과 시간 표시
             .setSubText(statusText)
+            .setNumber(0)
+            .setSilent(true)
             .build()
-
-        context.getSystemService(NotificationManager::class.java)
-            .notify(PARKED_NOTIFICATION_ID, notification)
     }
 
     fun dismissParkedNotification(context: Context) {
-        context.getSystemService(NotificationManager::class.java)
-            .cancel(PARKED_NOTIFICATION_ID)
+        val nm = context.getSystemService(NotificationManager::class.java)
+        nm.cancel(SERVICE_NOTIFICATION_ID) // 서비스가 떠 있으면 stopForeground가 마저 제거
+        nm.cancel(POPUP_NOTIFICATION_ID)
     }
 
     /**
-     * 형광 필 스타일 상태바 아이콘: 꽉 찬 둥근 사각형에서 글자를 뚫어낸(cutout) 비트맵.
+     * 형광 필 스타일 상태바 아이콘: 꽉 찬 캡슐에서 글자를 뚫어낸(cutout) 비트맵.
      * 상태바는 시스템이 단색 처리하지만 필 실루엣이라 훨씬 눈에 띄고,
-     * 알림창/잠금화면에서는 setColor(#97C459) 틴트로 형광 그린 필이 된다.
+     * 알림창/잠금화면에서는 colorized 형광그린 배경 위에 얹힌다.
      */
     private fun renderTextIcon(text: String): Bitmap {
         val size = 96
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        // 가로로 긴 캡슐(타원) — 양옆 꽉 차게. 불투명 영역이 틴트 대상:
-        // 상태바에선 시스템이 단색 처리(색 불가), 알림창/잠금화면에선 형광 그린(#97C459)
         val pillTop = 22f
         val pillBottom = size - 22f
         val radius = (pillBottom - pillTop) / 2f // 반지름 = 높이 절반 → 완전한 캡슐

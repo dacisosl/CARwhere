@@ -154,7 +154,7 @@ private fun SettingsScreen(onClose: () -> Unit) {
 
             // ── 4. 감지 ──
             SectionLabel("감지")
-            SwitchRow("자동감지 — 기압으로 층 추천 (베타)", pressureOn) {
+            SwitchRow("자동감지", pressureOn) {
                 store.pressureAutoDetect = it
                 refresh++
             }
@@ -229,7 +229,14 @@ private fun SettingsScreen(onClose: () -> Unit) {
                 ParkingStore.DISPLAY_BOTH to "홈 위젯 + 상태바"
             ),
             current = displayMode,
-            onSelect = { store.displayMode = it },
+            onSelect = {
+                store.displayMode = it
+                // 표시 방식 변경 즉시 반영: 상시 알림 상태 + 홈 위젯 (v3.6)
+                if (store.hasActiveParking()) {
+                    com.eottadwotji.detection.ParkingDetectionService.refresh(context)
+                }
+                com.eottadwotji.ui.widget.WidgetUpdater.update(context)
+            },
             onDismiss = { activeSheet = null; refresh++ }
         )
         "theme" -> OptionSheet(

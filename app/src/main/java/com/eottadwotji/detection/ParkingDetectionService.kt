@@ -34,13 +34,15 @@ import kotlin.math.roundToInt
  *   PARKED  ──(차 BT 재연결)──> DRIVING (주차 기록 만료 → Room 히스토리, 표시 제거)
  *   PARKED  ──(10초 무응답)──> PARKED(층 없음, "위치만 저장됨" 표시)
  *
- * v2 추가:
- * - 팝업: 오버레이 권한 있으면 다른 앱 위 바텀시트(FloorPickerActivity), 없으면 헤드업 알림 폴백
- * - 기압 자동감지(베타): 주행 시작(BT 연결)~하차 사이 기압 변화로 지하 층수 "추정"만.
- *   확정은 항상 사람 탭 (절대 규칙 5). 센서는 주행 중에만 등록 (절대 규칙 7 — 배터리).
+ * v3.6 수명 정책 — "감지 대기 중" 상시 알림 제거:
+ * 포그라운드 서비스 알림은 시스템이 최소 LOW로 승격해 상태바에 항상 떠 버린다.
+ * 그래서 대기 중에는 서비스를 아예 돌리지 않는다 — 차 블루투스 끊김/연결
+ * 브로드캐스트(매니페스트 등록, BT 브로드캐스트는 FGS 시작 예외 대상)가 앱을 깨운다.
+ * 서비스가 살아 있는 구간은 딱 두 가지:
+ *   1. 주차 확정~출차 (P·B3 캡슐 = 서비스 알림 그 자체 → 알림 1개, 안정적)
+ *   2. 기압 자동감지 켠 상태의 주행 중 (센서 샘플링 유지용)
  *
  * 위치는 주차 확정 순간 lastLocation 1회만 조회 (절대 규칙 6).
- * 지하에서는 GPS가 잡히지 않으므로 "진입 직전 마지막 위치"가 오히려 정확하다.
  */
 class ParkingDetectionService : Service(), SensorEventListener {
 
@@ -56,12 +58,26 @@ class ParkingDetectionService : Service(), SensorEventListener {
         private const val ACTION_START = "com.eottadwotji.START_DETECTION"
         private const val ACTION_CAR_DISCONNECTED = "com.eottadwotji.CAR_DISCONNECTED"
         private const val ACTION_CAR_CONNECTED = "com.eottadwotji.CAR_CONNECTED"
+        private const val ACTION_REFRESH = "com.eottadwotji.REFRESH_NOTIFICATION"
 
-        /** 앱 실행/온보딩 완료/부팅 시 감지 대기 시작 */
+        /**
+         * 앱 실행/부팅 시: 주차 중일 때만 서비스를 붙여 P·B3 캡슐을 복원한다.
+         * 대기 상태에서는 서비스가 필요 없다 — BT 브로드캐스트가 깨운다 (v3.6).
+         */
         fun start(context: Context) {
+            if (ParkingStore(context).hasActiveParking()) {
+                context.startForegroundService(
+                    Intent(context, ParkingDetectionService::class.java)
+                        .setAction(ACTION_START)
+                )
+            }
+        }
+
+        /** 설정 변경(표시 방식 등) 후 상시 알림 상태를 다시 계산 */
+        fun refresh(context: Context) {
             context.startForegroundService(
                 Intent(context, ParkingDetectionService::class.java)
-                    .setAction(ACTION_START)
+                    .setAction(ACTION_REFRESH)
             )
         }
 
@@ -89,7 +105,7 @@ class ParkingDetectionService : Service(), SensorEventListener {
     private var smoothedPressure: Float? = null
     private var pressureRegistered = false
 
-    /** 동적 등록 리시버 — API 33+에서 매니페스트 등록이 제한되는 케이스 대응 (README) */
+    /** 서비스 생존 중엔 동적 등록도 병행 — 매니페스트 등록의 백업 (README) */
     private val dynamicReceiver = CarBluetoothReceiver()
 
     override fun onCreate() {
@@ -104,11 +120,12 @@ class ParkingDetectionService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // 서비스 자체의 최소 상시 알림 (감지 대기 중)
+        // startForegroundService 계약: 무조건 startForeground 먼저.
+        // 알림 내용은 현재 상태 기준 (주차 중이면 P·B3 캡슐, 아니면 감지 문구)
         ServiceCompat.startForeground(
             this,
             ParkingNotification.SERVICE_NOTIFICATION_ID,
-            ParkingNotification.buildIdleNotification(this),
+            ParkingNotification.buildServiceNotification(this),
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
         )
@@ -116,7 +133,8 @@ class ParkingDetectionService : Service(), SensorEventListener {
         when (intent?.action) {
             ACTION_CAR_DISCONNECTED -> onCarDisconnected()
             ACTION_CAR_CONNECTED -> onCarConnected()
-            // ACTION_START: 감지 대기만 시작 (리시버는 onCreate에서 이미 등록됨)
+            // ACTION_START / ACTION_REFRESH: 상태 재계산만 — 필요 없으면 즉시 종료
+            else -> stopIfNothingToShow()
         }
         return START_STICKY
     }
@@ -124,7 +142,10 @@ class ParkingDetectionService : Service(), SensorEventListener {
     /** 하차 후보: 5초 안에 재연결이 없으면 진짜 주차로 판정 */
     private fun onCarDisconnected() {
         cancelPendingFilter()
-        pendingParkingRunnable = Runnable { confirmParked() }.also {
+        pendingParkingRunnable = Runnable {
+            pendingParkingRunnable = null
+            confirmParked()
+        }.also {
             handler.postDelayed(it, RECONNECT_FILTER_MS)
         }
     }
@@ -135,16 +156,18 @@ class ParkingDetectionService : Service(), SensorEventListener {
         cancelFloorTimeout()
 
         val store = ParkingStore(this)
+        var keepDepartedNotification = false
         if (store.hasActiveParking()) {
             store.expireParking()
-            if (store.autoClearOnDeparture) {
-                ParkingNotification.dismissParkedNotification(this)
-            }
+            // 자동 삭제 꺼짐: 출차 후에도 마지막 주차 표시를 남긴다 (스와이프로 지울 수 있음)
+            keepDepartedNotification = !store.autoClearOnDeparture
             WidgetUpdater.update(this)
         }
 
         // 주행 시작 → 기압 샘플링 시작 (설정 켠 경우에만, 주행 중에만 — 배터리)
         if (store.pressureAutoDetect) startPressureSampling() else stopPressureSampling()
+
+        stopIfNothingToShow(keepNotification = keepDepartedNotification)
     }
 
     /** 주차 확정: 기압 추정 → GPS 좌표 1회 저장 → 바텀시트(또는 알림 폴백) */
@@ -217,13 +240,38 @@ class ParkingDetectionService : Service(), SensorEventListener {
         // 10초 무응답 → 층수 없이 "위치만 저장됨" 상태로 전환 (강요하지 않음 — PRD)
         cancelFloorTimeout()
         floorTimeoutRunnable = Runnable {
+            floorTimeoutRunnable = null
             if (store.hasActiveParking() && store.currentFloor() == null) {
                 ParkingNotification.showParkedNotification(
                     this, floor = null, startedAtMs = store.parkingStartedAt()
                 )
                 WidgetUpdater.update(this)
             }
+            stopIfNothingToShow() // "홈 위젯만" 모드면 여기서 서비스 정리
         }.also { handler.postDelayed(it, FLOOR_TIMEOUT_MS) }
+    }
+
+    /**
+     * 서비스가 계속 떠 있어야 할 이유가 없으면 종료 (v3.6).
+     * 남는 이유: ① 상태바에 P·B3 표시 중 ② 하차 판정/층 선택 대기 중 ③ 주행 중 기압 샘플링.
+     * keepNotification=true면 알림을 떼어놓고(detach) 종료 — 출차 후 표시 유지 옵션.
+     */
+    private fun stopIfNothingToShow(keepNotification: Boolean = false) {
+        val store = ParkingStore(this)
+        val showingParked = store.hasActiveParking() &&
+            store.displayMode != ParkingStore.DISPLAY_WIDGET
+        val detectionWindow = pendingParkingRunnable != null || floorTimeoutRunnable != null
+        if (showingParked || detectionWindow || pressureRegistered) {
+            // 계속 표시해야 함 — 알림 내용만 최신으로
+            return
+        }
+        if (keepNotification) {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
+        } else {
+            ParkingNotification.dismissParkedNotification(this)
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        }
+        stopSelf()
     }
 
     // ── 기압 센서 (주행 중에만 등록 — 절대 규칙 7) ─────────

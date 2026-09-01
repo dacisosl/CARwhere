@@ -54,6 +54,7 @@ import com.eottadwotji.data.ParkingStore
 import com.eottadwotji.data.PhotoStore
 import com.eottadwotji.data.UpdateChecker
 import com.eottadwotji.detection.ParkingDetectionService
+import com.eottadwotji.ui.widget.WidgetUpdater
 import com.eottadwotji.ui.components.CircularGauge
 import com.eottadwotji.ui.floorpicker.FloorPickerActivity
 import com.eottadwotji.ui.history.HistoryActivity
@@ -82,15 +83,18 @@ fun DashboardScreen() {
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) refreshKey++
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshKey++
+                WidgetUpdater.update(context) // 앱 복귀 시 위젯도 최신 상태로 동기화 (v3.6)
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(Unit) {
         while (true) {
-            delay(60_000L)
-            refreshKey++ // 경과 시간 갱신
+            delay(3_000L)
+            refreshKey++ // 화면 떠 있는 동안 상태·경과 시간 갱신 (SharedPreferences 읽기 — 가벼움)
         }
     }
 
@@ -377,7 +381,7 @@ private fun InlineSettingsCard(store: ParkingStore, onChanged: () -> Unit) {
 
         if (expanded) {
             Spacer(Modifier.height(6.dp))
-            InlineToggle("자동감지 — 기압 층 추천 (베타)", pressureOn) {
+            InlineToggle("자동감지", pressureOn) {
                 pressureOn = it
                 store.pressureAutoDetect = it
                 onChanged()
@@ -386,6 +390,11 @@ private fun InlineSettingsCard(store: ParkingStore, onChanged: () -> Unit) {
                 widgetAndBar = it
                 store.displayMode =
                     if (it) ParkingStore.DISPLAY_BOTH else ParkingStore.DISPLAY_STATUSBAR
+                // 표시 방식 변경 즉시 반영: 상시 알림 + 홈 위젯 (v3.6)
+                if (store.hasActiveParking()) {
+                    ParkingDetectionService.refresh(context)
+                }
+                WidgetUpdater.update(context)
                 onChanged()
             }
             InlineToggle("출차 시 자동 삭제", autoClear) {

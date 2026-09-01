@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,7 +47,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import android.speech.RecognizerIntent
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import com.eottadwotji.R
 import com.eottadwotji.data.ParkingLotProfile
 import com.eottadwotji.data.ParkingStore
@@ -81,11 +87,15 @@ class FloorPickerActivity : ComponentActivity() {
         private const val NEON_FEEDBACK_MS = 120L   // 층 선택 형광 점등
         private const val SLIDE_UP_MS = 220         // 시트 등장
         private const val AUTO_DISMISS_MS = 10_000L // 무응답 → 시트 하강
-        private const val LOT_RECHECK_MS = 800L     // 수동 기록 좌표 조회 완료 대기
+        private const val LOT_RECHECK_MS = 600L     // 수동 기록 좌표 조회 폴링 간격
+        private const val LOT_RECHECK_TRIES = 4     // 폴링 횟수 (총 ~2.4초)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 투명(windowIsTranslucent) 창은 adjustResize가 안 먹는다 —
+        // 키보드가 저장 버튼을 가리지 않도록 인셋을 직접 받아 imePadding으로 처리
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         val store = ParkingStore(this)
 
         val fromDetection = intent.getBooleanExtra(EXTRA_FROM_DETECTION, false)
@@ -93,7 +103,10 @@ class FloorPickerActivity : ComponentActivity() {
 
         // 수동 기록: 감지 없이 열렸으면 세션을 새로 시작하고 좌표 1회 저장
         if (!fromDetection && (manual || !store.hasActiveParking())) {
-            if (store.hasActiveParking()) store.expireParking() // 이전 세션은 히스토리로
+            if (store.hasActiveParking()) {
+                store.expireParking() // 이전 세션은 히스토리로
+                WidgetUpdater.update(this)
+            }
             store.startParking(System.currentTimeMillis(), manual = true)
             fetchLocationOnce(store)
         }
@@ -144,22 +157,27 @@ class FloorPickerActivity : ComponentActivity() {
         val estimatedFloor = remember { store.estimatedFloor }
 
         var selectedFloor by remember { mutableStateOf<String?>(null) }
-        var finishAfterCamera by remember { mutableStateOf(false) }
+        var confirmAfterCamera by remember { mutableStateOf(false) }
 
-        // 수동 기록은 좌표 조회가 비동기 → 잠시 후 다시 판정
+        // 수동 기록은 좌표 조회가 비동기 → 매칭될 때까지 잠시 폴링 (최대 ~2.4초).
+        // 등록된 위치로 판명되면 그 위치의 층 구성만 표시된다 (v3.6 — 해당 층수만).
         LaunchedEffect(Unit) {
-            if (lot == null) {
+            if (lot != null) return@LaunchedEffect
+            repeat(LOT_RECHECK_TRIES) {
                 delay(LOT_RECHECK_MS)
-                if (interacted) return@LaunchedEffect
+                if (interacted || selectedFloor != null) return@LaunchedEffect
                 val matched = store.currentLot()
                 when {
                     matched != null -> {
                         lot = matched
                         phase = Phase.FLOOR
+                        return@LaunchedEffect
                     }
                     // 좌표가 늦게 도착했고 매칭 실패 → 이제 새 위치 등록을 물을 수 있다
-                    store.coordinates() != null && phase == Phase.FLOOR &&
-                        selectedFloor == null -> phase = Phase.SETUP
+                    store.coordinates() != null && phase == Phase.FLOOR -> {
+                        phase = Phase.SETUP
+                        return@LaunchedEffect
+                    }
                 }
             }
         }
@@ -169,7 +187,7 @@ class FloorPickerActivity : ComponentActivity() {
             ActivityResultContracts.TakePicture()
         ) { success ->
             if (success) store.photoUri = pendingPhotoUri?.toString()
-            if (finishAfterCamera) onDone()
+            if (confirmAfterCamera) phase = Phase.CONFIRM
         }
         val launchCamera = {
             val uri = PhotoStore.newPhotoUri(context, System.currentTimeMillis())
@@ -194,10 +212,10 @@ class FloorPickerActivity : ComponentActivity() {
             when (store.sheetModeForCurrentLocation()) {
                 ParkingStore.SHEET_FLOOR_MEMO -> phase = Phase.MEMO
                 ParkingStore.SHEET_FLOOR_PHOTO -> {
-                    finishAfterCamera = true
+                    confirmAfterCamera = true
                     launchCamera()
                 }
-                else -> onDone()
+                else -> phase = Phase.CONFIRM // 층수만 모드도 최종 확인은 거친다 (v3.6)
             }
         }
 
@@ -236,6 +254,7 @@ class FloorPickerActivity : ComponentActivity() {
                         .clickable(enabled = false) {} // 시트 내부 탭이 스크림으로 새지 않게
                         .padding(horizontal = 24.dp)
                         .navigationBarsPadding()
+                        .imePadding() // 키보드가 올라오면 시트가 그만큼 밀려 저장 버튼이 가려지지 않는다
                         .animateContentSize(animationSpec = tween(180))
                 ) {
                     // 드래그 핸들
@@ -257,6 +276,7 @@ class FloorPickerActivity : ComponentActivity() {
                                 Phase.FLOOR ->
                                     if (lot != null) "${lot!!.name} — 몇 층?" else "몇 층에 댔어요?"
                                 Phase.MEMO -> "${selectedFloor ?: ""} 저장됨 — 세부구역은?"
+                                Phase.CONFIRM -> "이렇게 등록했어요 — 맞아요?"
                             },
                             style = AppType.Title,
                             color = Concrete.TextMain
@@ -324,8 +344,21 @@ class FloorPickerActivity : ComponentActivity() {
                                             context, it, startedAtMs = store.parkingStartedAt()
                                         )
                                     }
+                                    WidgetUpdater.update(context)
                                 }
-                                onDone()
+                                phase = Phase.CONFIRM
+                            }
+                        )
+                        Phase.CONFIRM -> ConfirmCard(
+                            lotName = lot?.name,
+                            floor = selectedFloor,
+                            memo = store.currentMemo(),
+                            startedAtMs = store.parkingStartedAt(),
+                            onConfirm = onDone,
+                            onEdit = {
+                                // 층부터 다시 — 선택 해제 후 층 선택 화면으로
+                                selectedFloor = null
+                                phase = Phase.FLOOR
                             }
                         )
                     }
@@ -336,7 +369,77 @@ class FloorPickerActivity : ComponentActivity() {
     }
 }
 
-private enum class Phase { SETUP, FLOOR, MEMO }
+private enum class Phase { SETUP, FLOOR, MEMO, CONFIRM }
+
+/**
+ * v3.6 자동 주차기록 운영 방침: 저장 내용을 요약해 보여주고 최종 확인을 받는다.
+ * [맞아요] → 시트 닫기, [수정하기] → 층 선택부터 다시.
+ */
+@Composable
+private fun ConfirmCard(
+    lotName: String?,
+    floor: String?,
+    memo: String?,
+    startedAtMs: Long,
+    onConfirm: () -> Unit,
+    onEdit: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Concrete.BgPanel, RoundedCornerShape(10.dp))
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    floor ?: "층 미지정",
+                    style = AppType.Title,
+                    color = if (floor != null) Concrete.NeonLight else Concrete.TextDim
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    lotName ?: "이름 없는 주차장",
+                    style = AppType.Body,
+                    color = Concrete.TextMain
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    java.text.SimpleDateFormat("a h:mm", java.util.Locale.KOREAN)
+                        .format(java.util.Date(startedAtMs)),
+                    style = AppType.Hint,
+                    color = Concrete.TextDim
+                )
+            }
+            if (!memo.isNullOrBlank()) {
+                Text(memo, style = AppType.BodySmall, color = Concrete.TextSub)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
+                    .clickable(onClick = onEdit),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("수정하기", style = AppType.BodySmall, color = Concrete.TextSub)
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .background(Concrete.Neon, RoundedCornerShape(8.dp))
+                    .clickable(onClick = onConfirm),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("맞아요", style = AppType.FloorButton, color = Concrete.NeonDeep)
+            }
+        }
+    }
+}
 
 /** 새 위치 등록: 이름 + 층 구성 선택 (v3 흐름 — 새로운 곳은 위치 설정 먼저) */
 @Composable
@@ -524,12 +627,50 @@ private fun FloorRow(
 private fun MemoInput(onSave: (String) -> Unit) {
     var memo by remember { mutableStateOf("") }
 
+    // v3.6: 음성으로 메모 입력 — 시스템 음성인식 (권한 불필요, 결과 텍스트만 수신)
+    val speechLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val spoken = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+        if (!spoken.isNullOrBlank()) {
+            memo = if (memo.isBlank()) spoken else "$memo $spoken"
+        }
+    }
+    val launchSpeech = {
+        runCatching {
+            speechLauncher.launch(
+                android.content.Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(
+                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                    )
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
+                    putExtra(RecognizerIntent.EXTRA_PROMPT, "세부구역을 말해주세요 (예: C구역 기둥 27 옆)")
+                }
+            )
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedTextField(
             value = memo,
             onValueChange = { memo = it },
             label = { Text("세부구역 (예: C구역 기둥 27 옆)", style = AppType.BodySmall) },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onSave(memo) }), // 키보드 완료 = 저장
+            trailingIcon = {
+                IconButton(onClick = { launchSpeech() }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_mic),
+                        contentDescription = "음성으로 입력",
+                        tint = Concrete.Neon,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            },
             colors = sheetFieldColors(),
             modifier = Modifier.fillMaxWidth()
         )

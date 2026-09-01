@@ -7,6 +7,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.cornerRadius
@@ -18,14 +20,20 @@ import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
+import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.size
+import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.eottadwotji.MainActivity
+import com.eottadwotji.R
 import com.eottadwotji.data.ParkingStore
 import com.eottadwotji.ui.floorpicker.FloorPickerActivity
 import kotlinx.coroutines.CoroutineScope
@@ -33,17 +41,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * 홈 위젯 2종 (DESIGN v2):
- * - 2x1 필: 형광 배경 "🚗 B3 · 스타필드" — 상태바가 단색 처리되는 한계를 위젯의 형광 필로 보완
- * - 1x1 게이지: 층수만 크게
- * 주차 없을 땐 회색 "기록하기" — 수동 기록 진입점.
+ * 홈 위젯 2종 (v3.6 리디자인 — 앱 아이덴티티와 통일):
+ * - 2x1 필: 다크 카드 + 실사 세단 에셋 + 층수(네온) + 시각·장소
+ * - 1x1 게이지: 실사 세단 미니 + 층수(네온) + 시각
+ * 주차 없을 땐 "탭해서 기록" — 수동 기록 진입점.
  *
  * 갱신은 주차 상태가 바뀌는 순간에만 push (updatePeriodMillis=0 — 배터리 규칙 7).
  */
 
 private val Neon = Color(0xFFAEEA00)
-private val NeonDeep = Color(0xFF1F3D00)
-private val BgCard = Color(0xFF2C2C2A)
+private val BgCard = Color(0xFF1E1E1C)   // 앱 대시보드와 동일한 카드 톤
+private val TextMain = Color(0xFFF1EFE9)
 private val TextBody = Color(0xFFD3D1C7)
 private val TextDim = Color(0xFF888780)
 
@@ -66,64 +74,86 @@ class GaugeWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = GaugeWidget()
 }
 
-/** 2x1 형광 필 위젯 — 층수 + 주차 시각 (v3) */
+/** 2x1 필 위젯 — 실사 세단 + 층수 + 시각·장소 */
 class PillWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val store = ParkingStore(context)
         val parked = store.hasActiveParking()
         val floor = store.currentFloor()
         val time = formatTime(store.parkingStartedAt())
+        val lotName = store.currentLot()?.name
 
         provideContent {
-            PillContent(parked, floor, time)
+            PillContent(parked, floor, time, lotName)
         }
     }
 }
 
 @Composable
-private fun PillContent(parked: Boolean, floor: String?, time: String) {
-    Box(
+private fun PillContent(parked: Boolean, floor: String?, time: String, lotName: String?) {
+    Row(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(if (parked) Neon else BgCard)
+            .background(BgCard)
             .cornerRadius(24.dp)
             .clickable(
                 if (parked) actionStartActivity<MainActivity>()
                 else actionStartActivity<FloorPickerActivity>()
             )
             .padding(horizontal = 14.dp),
-        contentAlignment = Alignment.Center
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        // 실사 세단 에셋 (앱 아이콘과 동일한 아트)
+        Image(
+            provider = ImageProvider(R.drawable.ic_fg_sedan_white),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = GlanceModifier.size(52.dp).cornerRadius(14.dp)
+        )
+        Spacer(GlanceModifier.width(10.dp))
         if (parked) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Column {
                 Text(
-                    "🚗 ",
-                    style = TextStyle(fontSize = 22.sp) // v3: 차 아이콘 크게
+                    floor ?: "P",
+                    style = TextStyle(
+                        color = ColorProvider(Neon),
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    maxLines = 1
                 )
                 Text(
-                    "${floor ?: "P"} · $time",
+                    listOfNotNull(time, lotName).joinToString(" · "),
                     style = TextStyle(
-                        color = ColorProvider(NeonDeep),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
+                        color = ColorProvider(TextBody),
+                        fontSize = 11.sp
                     ),
                     maxLines = 1
                 )
             }
         } else {
-            Text(
-                "기록하기",
-                style = TextStyle(
-                    color = ColorProvider(TextDim),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
+            Column {
+                Text(
+                    "탭해서 기록",
+                    style = TextStyle(
+                        color = ColorProvider(TextMain),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 )
-            )
+                Text(
+                    "주차하면 층수가 떠요",
+                    style = TextStyle(
+                        color = ColorProvider(TextDim),
+                        fontSize = 10.sp
+                    )
+                )
+            }
         }
     }
 }
 
-/** 1x1 게이지 미니 위젯 — 층수 + 주차 시각 (v3) */
+/** 1x1 게이지 미니 위젯 — 실사 세단 미니 + 층수 + 시각 */
 class GaugeWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val store = ParkingStore(context)
@@ -151,12 +181,19 @@ private fun GaugeContent(parked: Boolean, floor: String?, time: String) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_fg_sedan_white),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = GlanceModifier.size(34.dp).cornerRadius(10.dp)
+            )
+            Spacer(GlanceModifier.height(2.dp))
             Text(
                 if (parked) (floor ?: "P") else "—",
                 style = TextStyle(
                     color = ColorProvider(if (parked) Neon else TextDim),
                     fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Bold
                 )
             )
             Text(
