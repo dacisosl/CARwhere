@@ -93,6 +93,9 @@ private fun SettingsScreen(onClose: () -> Unit) {
     // 위치 모달: null=닫힘, 빈 id=새 위치
     var editingLot by remember { mutableStateOf<ParkingLotProfile?>(null) }
     var creatingLot by remember { mutableStateOf(false) }
+    var showIconModal by remember { mutableStateOf(false) }
+    val iconCar = remember(refresh) { store.appIconCar }
+    val iconColor = remember(refresh) { store.appIconColor }
 
     Column(
         modifier = Modifier
@@ -164,7 +167,16 @@ private fun SettingsScreen(onClose: () -> Unit) {
                 }
             }
 
-            // ── 5. 기타 ──
+            // ── 5. 앱 아이콘 ──
+            SectionLabel("앱 아이콘")
+            SettingRow(
+                "차량 아이콘",
+                if (iconCar != null && iconColor != null)
+                    "${AppIconSwitcher.carLabel(iconCar)} · ${AppIconSwitcher.colorLabel(iconColor)}"
+                else "기본 (형광)"
+            ) { showIconModal = true }
+
+            // ── 6. 기타 ──
             SectionLabel("기타")
             SwitchRow("출차 시 자동 삭제", autoClear) {
                 store.autoClearOnDeparture = it
@@ -227,6 +239,169 @@ private fun SettingsScreen(onClose: () -> Unit) {
             }
         )
     }
+
+    // ── 앱 아이콘 모달 ──
+    if (showIconModal) {
+        AppIconModal(
+            store = store,
+            onDismiss = {
+                showIconModal = false
+                refresh++
+            }
+        )
+    }
+}
+
+// ── 앱 아이콘 선택 모달 (v3.2) ──────────────────────────────
+
+@Composable
+private fun AppIconModal(store: ParkingStore, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var car by remember { mutableStateOf(store.appIconCar) }     // null = 기본
+    var color by remember { mutableStateOf(store.appIconColor ?: "white") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .background(Concrete.BgDeep, RoundedCornerShape(16.dp))
+                .padding(20.dp)
+                .heightIn(max = 560.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text("앱 아이콘", style = AppType.Title, color = Concrete.TextMain)
+
+            // 미리보기
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .background(Concrete.BgScreen, RoundedCornerShape(24.dp))
+            ) {
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(
+                        iconPreviewRes(car, color)
+                    ),
+                    contentDescription = "아이콘 미리보기",
+                    modifier = Modifier.padding(4.dp).heightIn(max = 120.dp)
+                )
+            }
+
+            Text("차종", style = AppType.SectionLabel, color = Concrete.TextDim)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                AppIconSwitcher.CARS.forEach { c ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
+                            .clickable { car = c }
+                            .padding(horizontal = 14.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            AppIconSwitcher.carLabel(c),
+                            style = AppType.BodySmall,
+                            color = if (car == c) Concrete.NeonLight else Concrete.TextBody
+                        )
+                        Spacer(Modifier.weight(1f))
+                        if (car == c) Text("✓", style = AppType.BodySmall, color = Concrete.Neon)
+                    }
+                }
+            }
+
+            Text("색상", style = AppType.SectionLabel, color = Concrete.TextDim)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AppIconSwitcher.COLORS.forEach { col ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                            .background(
+                                if (color == col) Concrete.Neon else Concrete.BgPanel,
+                                RoundedCornerShape(8.dp)
+                            )
+                            .clickable { color = col },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            AppIconSwitcher.colorLabel(col),
+                            style = AppType.BodySmall,
+                            color = if (color == col) Concrete.NeonDeep else Concrete.TextBody
+                        )
+                    }
+                }
+            }
+
+            Text(
+                "기본 아이콘(형광)으로 되돌리기",
+                style = AppType.BodySmall,
+                color = Concrete.TextDim,
+                modifier = Modifier
+                    .clickable { car = null }
+                    .padding(vertical = 4.dp)
+            )
+
+            Text(
+                "아이콘이 바뀔 때 앱이 잠깐 재시작될 수 있어요",
+                style = AppType.Hint,
+                color = Concrete.TextDim
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("닫기", style = AppType.BodySmall, color = Concrete.TextSub)
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .background(Concrete.Neon, RoundedCornerShape(8.dp))
+                        .clickable {
+                            val finalCar = car
+                            val finalColor = if (finalCar == null) null else color
+                            store.appIconCar = finalCar
+                            store.appIconColor = finalColor
+                            AppIconSwitcher.apply(context, finalCar, finalColor)
+                            onDismiss()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("적용", style = AppType.FloorButton, color = Concrete.NeonDeep)
+                }
+            }
+        }
+    }
+}
+
+/** 미리보기 드로어블 매핑 (car=null이면 기본 아이콘) */
+private fun iconPreviewRes(car: String?, color: String): Int = when (car) {
+    "kei" -> when (color) {
+        "black" -> com.eottadwotji.R.drawable.ic_fg_kei_black
+        "gray" -> com.eottadwotji.R.drawable.ic_fg_kei_gray
+        else -> com.eottadwotji.R.drawable.ic_fg_kei_white
+    }
+    "sedan" -> when (color) {
+        "black" -> com.eottadwotji.R.drawable.ic_fg_sedan_black
+        "gray" -> com.eottadwotji.R.drawable.ic_fg_sedan_gray
+        else -> com.eottadwotji.R.drawable.ic_fg_sedan_white
+    }
+    "suv" -> when (color) {
+        "black" -> com.eottadwotji.R.drawable.ic_fg_suv_black
+        "gray" -> com.eottadwotji.R.drawable.ic_fg_suv_gray
+        else -> com.eottadwotji.R.drawable.ic_fg_suv_white
+    }
+    "sports" -> when (color) {
+        "black" -> com.eottadwotji.R.drawable.ic_fg_sports_black
+        "gray" -> com.eottadwotji.R.drawable.ic_fg_sports_gray
+        else -> com.eottadwotji.R.drawable.ic_fg_sports_white
+    }
+    else -> com.eottadwotji.R.drawable.ic_launcher_fg
 }
 
 // ── 위치 모달창 (v3) ────────────────────────────────────────

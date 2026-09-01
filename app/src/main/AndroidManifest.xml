@@ -28,14 +28,167 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Eottadwotji">
 
+        <!-- 앱 아이콘 변경: 런처 진입점은 전부 alias — MainActivity 자체는 항상 활성이라
+             알림/위젯 PendingIntent가 아이콘 변경과 무관하게 동작한다 -->
         <activity
             android:name=".MainActivity"
+            android:exported="true" />
+
+        <activity-alias
+            android:name=".IconDefault"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:enabled="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".Icon_kei_white"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_kei_white"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".Icon_kei_black"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_kei_black"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".Icon_kei_gray"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_kei_gray"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".Icon_sedan_white"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_sedan_white"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".Icon_sedan_black"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_sedan_black"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".Icon_sedan_gray"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_sedan_gray"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".Icon_suv_white"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_suv_white"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".Icon_suv_black"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_suv_black"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".Icon_suv_gray"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_suv_gray"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".Icon_sports_white"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_sports_white"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".Icon_sports_black"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_sports_black"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".Icon_sports_gray"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_sports_gray"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- 층 선택 바텀시트: 감지 오버레이 / 알림 폴백 / 수동 기록 / 위젯 공용 진입점 -->
         <activity
