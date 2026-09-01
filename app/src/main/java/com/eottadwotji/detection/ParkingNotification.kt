@@ -67,10 +67,17 @@ object ParkingNotification {
         )
     }
 
+    /** 지금 상시 알림이 "주차 캡슐"이어야 하는 상태인가 (서비스의 채널 전환 판단용) */
+    fun wantsParkedNotification(context: Context): Boolean {
+        val store = com.eottadwotji.data.ParkingStore(context)
+        return store.hasActiveParking() &&
+            store.displayMode != com.eottadwotji.data.ParkingStore.DISPLAY_WIDGET
+    }
+
     /** 서비스 시작 시 현재 상태에 맞는 상시 알림 — 재시작/재부팅 후에도 표시 일관성 유지 */
     fun buildServiceNotification(context: Context): Notification {
         val store = com.eottadwotji.data.ParkingStore(context)
-        return if (store.hasActiveParking() && store.displayMode != com.eottadwotji.data.ParkingStore.DISPLAY_WIDGET) {
+        return if (wantsParkedNotification(context)) {
             buildParkedNotification(context, store.currentFloor(), store.parkingStartedAt())
         } else {
             buildIdleNotification(context)
@@ -131,26 +138,21 @@ object ParkingNotification {
     }
 
     /**
-     * 주차 확정: 상시 알림(서비스 알림)을 "P·B3" 캡슐로 교체.
-     * 알림이 항상 1개뿐이라 상태바 캡슐이 그룹 아이콘에 가려질 일이 없다.
-     * 알림창에서는 colorized로 형광그린 배경 (상태바 아이콘 자체는 OS가 단색 강제).
+     * 주차 확정 표시 요청 — 반드시 서비스를 경유한다 (v3.9).
+     *
+     * 이유: 상시 알림이 "감지 중"(idle_v2, MIN)으로 먼저 게시된 뒤 같은 ID로
+     * parked_v2 빌더로 notify()하면 Android가 채널 변경을 무시해 MIN에 갇힌다
+     * → 상태바 아이콘이 안 뜨는 간헐 버그의 원인. 서비스가 상태 전환을 감지해
+     * stopForeground(REMOVE) 후 신규 게시로 채널을 올바르게 적용한다.
      */
     fun showParkedNotification(context: Context, floor: String?, startedAtMs: Long = 0L) {
-        val nm = context.getSystemService(NotificationManager::class.java)
         // 하차 헤드업이 남아 있으면 정리 — 상시 알림 1개 원칙
-        nm.cancel(POPUP_NOTIFICATION_ID)
-
-        // v3 알림 설정: "홈 위젯만"이면 상시 캡슐을 띄우지 않는다 (위젯이 담당).
-        // 서비스가 떠 있으면 층 선택 타임아웃 시점에 스스로 정리한다.
-        val store = com.eottadwotji.data.ParkingStore(context)
-        if (store.displayMode == com.eottadwotji.data.ParkingStore.DISPLAY_WIDGET) {
-            nm.cancel(SERVICE_NOTIFICATION_ID)
-            return
-        }
-        nm.notify(SERVICE_NOTIFICATION_ID, buildParkedNotification(context, floor, startedAtMs))
+        context.getSystemService(NotificationManager::class.java)
+            .cancel(POPUP_NOTIFICATION_ID)
+        ParkingDetectionService.refresh(context)
     }
 
-    private fun buildParkedNotification(
+    internal fun buildParkedNotification(
         context: Context,
         floor: String?,
         startedAtMs: Long
@@ -163,7 +165,7 @@ object ParkingNotification {
             floor,
             store.currentZone(),
             store.currentMemo(),
-            store.currentLot()?.name
+            store.currentLot()?.name ?: store.approximateAddress()?.let { "$it 근처" }
         ).joinToString(" · ").ifEmpty { "위치만 저장됨" }
 
         return NotificationCompat.Builder(context, CHANNEL_PARKED)

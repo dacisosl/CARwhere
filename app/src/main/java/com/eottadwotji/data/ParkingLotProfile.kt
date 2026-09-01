@@ -29,7 +29,12 @@ data class ParkingLotProfile(
      * 지하1층이 실제 표기 1층인 식으로 체계적으로 어긋난다 — 사용자가 추정과 다른
      * 층을 고르면 그 차이를 학습해 다음 추정에 더한다.
      */
-    val pressureOffsetFloors: Int = 0
+    val pressureOffsetFloors: Int = 0,
+    /**
+     * v3.9: 이 위치에서 기압 추정을 사용자가 한 번이라도 확인/보정했는가.
+     * false면 "첫 확인" 엄격 모드 — 확인 카드 1회 강제. true면 조용히 유지.
+     */
+    val pressureCalibrated: Boolean = false
 ) {
 
     /** 좌표가 이 주차장 반경(150m) 안인지 판정 */
@@ -48,6 +53,7 @@ data class ParkingLotProfile(
         if (lastFloor != null) put("lastFloor", lastFloor)
         if (sheetMode != null) put("sheetMode", sheetMode)
         if (pressureOffsetFloors != 0) put("pressureOffset", pressureOffsetFloors)
+        if (pressureCalibrated) put("pCal", true)
     }
 
     companion object {
@@ -98,7 +104,8 @@ data class ParkingLotProfile(
                 memos = memos,
                 lastFloor = json.optString("lastFloor").ifEmpty { null },
                 sheetMode = json.optString("sheetMode").ifEmpty { null },
-                pressureOffsetFloors = json.optInt("pressureOffset", 0)
+                pressureOffsetFloors = json.optInt("pressureOffset", 0),
+                pressureCalibrated = json.optBoolean("pCal", false)
             )
         }
 

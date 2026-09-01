@@ -108,6 +108,9 @@ class ParkingDetectionService : Service(), SensorEventListener {
     /** 서비스 생존 중엔 동적 등록도 병행 — 매니페스트 등록의 백업 (README) */
     private val dynamicReceiver = CarBluetoothReceiver()
 
+    /** 현재 게시된 상시 알림이 주차 캡슐인지 (채널 전환 감지용 — v3.9) */
+    private var shownParked: Boolean? = null
+
     override fun onCreate() {
         super.onCreate()
         val filter = IntentFilter().apply {
@@ -121,14 +124,7 @@ class ParkingDetectionService : Service(), SensorEventListener {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // startForegroundService 계약: 무조건 startForeground 먼저.
-        // 알림 내용은 현재 상태 기준 (주차 중이면 P·B3 캡슐, 아니면 감지 문구)
-        ServiceCompat.startForeground(
-            this,
-            ParkingNotification.SERVICE_NOTIFICATION_ID,
-            ParkingNotification.buildServiceNotification(this),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
-        )
+        postForegroundNotification()
 
         when (intent?.action) {
             ACTION_CAR_DISCONNECTED -> onCarDisconnected()
@@ -137,6 +133,27 @@ class ParkingDetectionService : Service(), SensorEventListener {
             else -> stopIfNothingToShow()
         }
         return START_STICKY
+    }
+
+    /**
+     * 상시 알림 게시 — 감지 중(MIN 채널) ↔ 주차 캡슐(LOW 채널) 전환 처리 (v3.9).
+     * Android는 이미 게시된 알림의 채널 변경을 무시하므로, 상태 클래스가 바뀌면
+     * stopForeground(REMOVE)로 제거한 뒤 신규 게시해야 채널(=상태바 노출)이 올바르게 적용된다.
+     * 이게 빠지면 감지 → 주차 전환 시 MIN에 갇혀 상태바 캡슐이 안 뜬다 (간헐 버그의 원인).
+     */
+    private fun postForegroundNotification() {
+        val wantParked = ParkingNotification.wantsParkedNotification(this)
+        if (shownParked != null && shownParked != wantParked) {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        }
+        ServiceCompat.startForeground(
+            this,
+            ParkingNotification.SERVICE_NOTIFICATION_ID,
+            ParkingNotification.buildServiceNotification(this),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
+        )
+        shownParked = wantParked
     }
 
     /** 하차 후보: 5초 안에 재연결이 없으면 진짜 주차로 판정 */

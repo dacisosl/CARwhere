@@ -113,6 +113,7 @@ class ParkingStore(context: Context) {
             .remove(KEY_PARKING_LOT_ID)
             .remove(KEY_PARKING_PHOTO)
             .remove(KEY_ESTIMATED_FLOOR)
+            .remove(KEY_PARKING_ADDRESS)
             .apply()
     }
 
@@ -152,6 +153,22 @@ class ParkingStore(context: Context) {
         matchProfile(lat, lon)?.let { profile ->
             prefs.edit().putString(KEY_PARKING_LOT_ID, profile.id).apply()
         }
+        // v3.9: 대략적 주소 1회 역지오코딩 (백그라운드, 실패 시 조용히 폴백)
+        Thread {
+            runCatching {
+                if (!android.location.Geocoder.isPresent()) return@runCatching
+                @Suppress("DEPRECATION")
+                val addr = android.location.Geocoder(appContext, java.util.Locale.KOREAN)
+                    .getFromLocation(lat, lon, 1)?.firstOrNull() ?: return@runCatching
+                val text = listOfNotNull(
+                    addr.locality ?: addr.adminArea,
+                    addr.subLocality ?: addr.thoroughfare
+                ).joinToString(" ").trim()
+                if (text.isNotBlank()) {
+                    prefs.edit().putString(KEY_PARKING_ADDRESS, text).apply()
+                }
+            }
+        }.start()
     }
 
     fun coordinates(): Pair<Double, Double>? {
@@ -170,6 +187,14 @@ class ParkingStore(context: Context) {
     fun assignLot(profileId: String) {
         prefs.edit().putString(KEY_PARKING_LOT_ID, profileId).apply()
     }
+
+    /** v3.9: 위치 선택에서 "위치 없이" — 현재 세션의 위치 연결 해제 */
+    fun clearLot() {
+        prefs.edit().remove(KEY_PARKING_LOT_ID).apply()
+    }
+
+    /** v3.9: 좌표 역지오코딩으로 얻은 대략적 주소 (예: "하남시 신장동") */
+    fun approximateAddress(): String? = prefs.getString(KEY_PARKING_ADDRESS, null)
 
     /** 출차: 기록을 지우지 않고 Room 히스토리로 보관 (대시보드 최근 기록 카드) */
     fun expireParking() {
@@ -233,11 +258,17 @@ class ParkingStore(context: Context) {
      */
     fun recordPressureCalibration(actualFloor: String) {
         val estimated = estimatedFloor ?: return
-        if (estimated == actualFloor) return
         val lot = currentLot() ?: return
         val diff = ParkingLotProfile.pressureIndex(actualFloor) -
             ParkingLotProfile.pressureIndex(estimated)
-        saveProfile(lot.copy(pressureOffsetFloors = lot.pressureOffsetFloors + diff))
+        // 추정==실제 확인도 캘리브레이션 완료로 기록 — "첫 확인 후 그대로 유지" (v3.9)
+        if (diff == 0 && lot.pressureCalibrated) return
+        saveProfile(
+            lot.copy(
+                pressureOffsetFloors = lot.pressureOffsetFloors + diff,
+                pressureCalibrated = true
+            )
+        )
     }
 
     // ── 주차장 프로필 ───────────────────────────────────────
@@ -295,6 +326,7 @@ class ParkingStore(context: Context) {
         private const val KEY_PARKING_LON = "parking_lon"
         private const val KEY_PARKING_LOT_ID = "parking_lot_id"
         private const val KEY_PARKING_PHOTO = "parking_photo_uri"
+        private const val KEY_PARKING_ADDRESS = "parking_address"
 
         private const val KEY_LAST_FLOOR_GLOBAL = "last_floor_global"
         private const val KEY_PROFILES = "profiles_json"

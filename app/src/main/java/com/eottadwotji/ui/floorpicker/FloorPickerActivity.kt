@@ -59,6 +59,7 @@ import com.eottadwotji.data.ParkingStore
 import com.eottadwotji.data.PhotoStore
 import com.eottadwotji.detection.ParkingNotification
 import com.eottadwotji.ui.components.FloorSelector
+import com.eottadwotji.ui.components.FloorWheel
 import com.eottadwotji.ui.components.GroundLine
 import com.eottadwotji.ui.theme.AppType
 import com.eottadwotji.ui.theme.Concrete
@@ -155,9 +156,13 @@ class FloorPickerActivity : ComponentActivity() {
         val floors = remember(lot) { lot?.floors ?: ParkingLotProfile.DEFAULT_FLOORS }
         val lastFloor = remember(lot) { store.lastFloorForCurrentLocation() }
         val estimatedFloor = remember { store.estimatedFloor }
+        // v3.9 자동감지 정책: 이 위치에서 아직 한 번도 확인 안 한 추정이면 "첫 확인" 엄격 모드
+        val strictEstimate = estimatedFloor != null && lot?.pressureCalibrated != true
 
         var selectedFloor by remember { mutableStateOf<String?>(null) }
         var confirmAfterCamera by remember { mutableStateOf(false) }
+        // 휠 우측 메모/사진 버튼: 위치별 모드와 무관하게 다음 단계를 강제 (v3.9)
+        var forcedNext by remember { mutableStateOf<String?>(null) }
 
         // 수동 기록은 좌표 조회가 비동기 → 매칭될 때까지 잠시 폴링 (최대 ~2.4초).
         // 등록된 위치로 판명되면 그 위치의 층 구성만 표시된다 (v3.6 — 해당 층수만).
@@ -183,8 +188,9 @@ class FloorPickerActivity : ComponentActivity() {
         }
 
         // 확인 카드 설정에 따라: 카드 표시 또는 바로 등록 + 완료 팝업 (v3.7)
+        // 단, 이 위치의 기압 추정 첫 확인이면 설정과 무관하게 카드 1회 강제 (v3.9)
         val confirmOrFinish: () -> Unit = {
-            if (store.confirmBeforeDone) {
+            if (store.confirmBeforeDone || strictEstimate) {
                 phase = Phase.CONFIRM
             } else {
                 android.widget.Toast.makeText(
@@ -224,7 +230,13 @@ class FloorPickerActivity : ComponentActivity() {
                 context, floor, startedAtMs = store.parkingStartedAt()
             )
             WidgetUpdater.update(context)
-            when (store.sheetModeForCurrentLocation()) {
+            val nextMode = when (forcedNext) {
+                "memo" -> ParkingStore.SHEET_FLOOR_MEMO
+                "photo" -> ParkingStore.SHEET_FLOOR_PHOTO
+                else -> store.sheetModeForCurrentLocation()
+            }
+            forcedNext = null
+            when (nextMode) {
                 ParkingStore.SHEET_FLOOR_MEMO -> phase = Phase.MEMO
                 ParkingStore.SHEET_FLOOR_PHOTO -> {
                     confirmAfterCamera = true
@@ -288,6 +300,7 @@ class FloorPickerActivity : ComponentActivity() {
                         Text(
                             when (phase) {
                                 Phase.SETUP -> "새로운 곳이네요 — 어디예요?"
+                                Phase.LOT_SELECT -> "어느 주차장이에요?"
                                 Phase.FLOOR ->
                                     if (lot != null) "${lot!!.name} — 몇 층?" else "몇 층에 댔어요?"
                                 Phase.MEMO -> "${selectedFloor ?: ""} 저장됨 — 세부구역은?"
@@ -307,9 +320,62 @@ class FloorPickerActivity : ComponentActivity() {
                         }
                     }
 
+                    // 위치 칩: 현재 매칭된 위치 표시 + 탭해서 변경/등록 (v3.9)
+                    if (phase == Phase.FLOOR && selectedFloor == null) {
+                        Row(
+                            modifier = Modifier
+                                .background(Concrete.BgPanel, RoundedCornerShape(20.dp))
+                                .clickable {
+                                    interacted = true
+                                    phase = Phase.LOT_SELECT
+                                }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                lot?.name ?: "위치 선택하기",
+                                style = AppType.BodySmall,
+                                color = if (lot != null) Concrete.NeonLight else Concrete.TextSub
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("▾", style = AppType.Hint, color = Concrete.TextDim)
+                        }
+                    }
+
                     Spacer(Modifier.height(10.dp))
 
                     when (phase) {
+                        Phase.LOT_SELECT -> LotSelectList(
+                            profiles = store.profiles().sortedBy { it.name },
+                            currentLotId = lot?.id,
+                            onPick = { picked ->
+                                interacted = true
+                                store.assignLot(picked.id)
+                                lot = picked
+                                phase = Phase.FLOOR
+                            },
+                            onEdit = { picked ->
+                                context.startActivity(
+                                    android.content.Intent(
+                                        context,
+                                        com.eottadwotji.ui.settings.SettingsActivity::class.java
+                                    ).putExtra(
+                                        com.eottadwotji.ui.settings.SettingsActivity.EXTRA_EDIT_LOT_ID,
+                                        picked.id
+                                    )
+                                )
+                            },
+                            onNew = {
+                                interacted = true
+                                phase = Phase.SETUP
+                            },
+                            onNone = {
+                                interacted = true
+                                store.clearLot()
+                                lot = null
+                                phase = Phase.FLOOR
+                            }
+                        )
                         Phase.SETUP -> LotSetup(
                             onInteract = { interacted = true },
                             onSave = { name, selectedFloors ->
@@ -334,22 +400,55 @@ class FloorPickerActivity : ComponentActivity() {
                             }
                         )
                         Phase.FLOOR -> Column {
-                            FloorStack(
-                                floors = floors,
-                                lastFloor = lastFloor,
-                                estimatedFloor = estimatedFloor,
-                                selectedFloor = selectedFloor,
-                                memoFor = { store.currentLot()?.memos?.get(it) },
-                                onPick = onFloorPicked
-                            )
+                            if (lot != null) {
+                                // 등록된 위치: 층 구성이 확정돼 있으니 휠 피커 (v3.9)
+                                FloorWheel(
+                                    floors = ParkingLotProfile.sortFloors(floors),
+                                    initialFloor = estimatedFloor ?: lastFloor,
+                                    selectedFloor = selectedFloor,
+                                    suffixFor = { floor ->
+                                        when {
+                                            floor == estimatedFloor ->
+                                                if (strictEstimate) "기압 추정 · 첫 확인"
+                                                else "보정된 추정"
+                                            floor == lastFloor -> "지난번"
+                                            else -> null
+                                        }
+                                    },
+                                    onSave = onFloorPicked,
+                                    onMemo = { floor ->
+                                        forcedNext = "memo"
+                                        onFloorPicked(floor)
+                                    },
+                                    onPhoto = { floor ->
+                                        forcedNext = "photo"
+                                        onFloorPicked(floor)
+                                    }
+                                )
+                            } else {
+                                // 미등록 위치: 층 구성이 불확실하니 직접 탭 선택 유지
+                                FloorStack(
+                                    floors = floors,
+                                    lastFloor = lastFloor,
+                                    estimatedFloor = estimatedFloor,
+                                    selectedFloor = selectedFloor,
+                                    memoFor = { store.currentLot()?.memos?.get(it) },
+                                    onPick = onFloorPicked
+                                )
+                            }
                             Spacer(Modifier.height(10.dp))
                             Text(
-                                if (estimatedFloor != null)
-                                    "기압 추정은 지형 높이에 따라 다를 수 있어요 — 꼭 확인하세요"
-                                else "탭 한 번이면 저장 · 10초 무응답 시 위치만 저장",
+                                when {
+                                    strictEstimate ->
+                                        "기압 추정 첫 확인이에요 — 높이에 따라 다를 수 있으니 꼭 확인하세요"
+                                    estimatedFloor != null ->
+                                        "이 위치에 맞게 보정된 추정이에요"
+                                    lot != null ->
+                                        "휠을 돌려 맞추고 저장 · 10초 무응답 시 위치만 저장"
+                                    else -> "탭 한 번이면 저장 · 10초 무응답 시 위치만 저장"
+                                },
                                 style = AppType.Hint,
-                                color = if (estimatedFloor != null) Concrete.TextSub
-                                else Concrete.TextDim,
+                                color = if (strictEstimate) Concrete.TextSub else Concrete.TextDim,
                                 modifier = Modifier.align(Alignment.CenterHorizontally)
                             )
                         }
@@ -387,7 +486,88 @@ class FloorPickerActivity : ComponentActivity() {
     }
 }
 
-private enum class Phase { SETUP, FLOOR, MEMO, CONFIRM }
+private enum class Phase { SETUP, LOT_SELECT, FLOOR, MEMO, CONFIRM }
+
+/** v3.9 위치 선택: 등록된 위치 목록 + 편집 + 새 위치 등록 + 위치 없이 */
+@Composable
+private fun LotSelectList(
+    profiles: List<ParkingLotProfile>,
+    currentLotId: String?,
+    onPick: (ParkingLotProfile) -> Unit,
+    onEdit: (ParkingLotProfile) -> Unit,
+    onNew: () -> Unit,
+    onNone: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        profiles.forEach { profile ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        if (profile.id == currentLotId) Concrete.BgPanel else Concrete.BgPanel,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .border(
+                        if (profile.id == currentLotId) 1.5.dp else 0.dp,
+                        if (profile.id == currentLotId) Concrete.Neon else Color.Transparent,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable { onPick(profile) }
+                    .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
+                    Text(
+                        profile.name,
+                        style = AppType.Body,
+                        color = if (profile.id == currentLotId) Concrete.NeonLight
+                        else Concrete.TextBody
+                    )
+                    val sorted = ParkingLotProfile.sortFloors(profile.floors)
+                    Text(
+                        if (sorted.isEmpty()) ""
+                        else "${sorted.first()}~${sorted.last()}" +
+                            if (profile.latitude != null) " · 위치 등록됨" else "",
+                        style = AppType.Hint,
+                        color = Concrete.TextDim
+                    )
+                }
+                // 편집 → 설정의 위치 모달 (수정·삭제)
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clickable { onEdit(profile) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("✎", style = AppType.Body, color = Concrete.TextDim)
+                }
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(46.dp)
+                    .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
+                    .clickable(onClick = onNone),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("위치 없이", style = AppType.BodySmall, color = Concrete.TextSub)
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(46.dp)
+                    .background(Concrete.Neon, RoundedCornerShape(8.dp))
+                    .clickable(onClick = onNew),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("+ 새 위치 등록", style = AppType.FloorButton, color = Concrete.NeonDeep)
+            }
+        }
+    }
+}
 
 /**
  * v3.6 자동 주차기록 운영 방침: 저장 내용을 요약해 보여주고 최종 확인을 받는다.

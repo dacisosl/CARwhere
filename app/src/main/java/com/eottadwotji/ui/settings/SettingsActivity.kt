@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -71,18 +72,25 @@ import java.util.UUID
  * 위치는 탭하면 모달창으로 편집 (이름·층 구성·위치별 바텀시트·좌표).
  */
 class SettingsActivity : ComponentActivity() {
+
+    companion object {
+        /** 바텀시트의 위치 편집 버튼에서 특정 위치 모달을 바로 연다 (v3.9) */
+        const val EXTRA_EDIT_LOT_ID = "edit_lot_id"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val editLotId = intent.getStringExtra(EXTRA_EDIT_LOT_ID)
         setContent {
             EottadwotjiTheme {
-                SettingsScreen(onClose = { finish() })
+                SettingsScreen(onClose = { finish() }, initialEditLotId = editLotId)
             }
         }
     }
 }
 
 @Composable
-private fun SettingsScreen(onClose: () -> Unit) {
+private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null) {
     val context = LocalContext.current
     val store = remember { ParkingStore(context) }
     var refresh by remember { mutableIntStateOf(0) }
@@ -99,8 +107,12 @@ private fun SettingsScreen(onClose: () -> Unit) {
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
 
     var activeSheet by remember { mutableStateOf<String?>(null) }
-    // 위치 모달: null=닫힘, 빈 id=새 위치
-    var editingLot by remember { mutableStateOf<ParkingLotProfile?>(null) }
+    // 위치 모달: null=닫힘, 빈 id=새 위치. 바텀시트 편집 버튼 경유 시 바로 연다 (v3.9)
+    var editingLot by remember {
+        mutableStateOf<ParkingLotProfile?>(
+            initialEditLotId?.let { id -> store.profiles().firstOrNull { it.id == id } }
+        )
+    }
     var creatingLot by remember { mutableStateOf(false) }
     var showIconModal by remember { mutableStateOf(false) }
     val iconCar = remember(refresh) { store.appIconCar }
@@ -124,13 +136,21 @@ private fun SettingsScreen(onClose: () -> Unit) {
             Text("설정", style = AppType.Title, color = Concrete.TextMain)
         }
 
-        // v3.7: 아코디언 구조 — 섹션을 누르면 그 자리에서 펼쳐진다. ★는 대시보드 빠른 설정 등록
-        var openSections by remember { mutableStateOf(setOf("위치")) }
+        // v3.7: 아코디언 구조 — 섹션을 누르면 그 자리에서 접힌다. 기본은 전부 열림 (v3.9)
+        var openSections by remember {
+            mutableStateOf(setOf("위치", "바텀시트", "알림", "감지", "앱 아이콘", "기타", "배터리"))
+        }
         val toggleSection: (String) -> Unit = { name ->
             openSections =
                 if (name in openSections) openSections - name else openSections + name
         }
-        val starChanged = { refresh++; Unit }
+        val starredSet = remember(refresh) { store.starredSettings }
+        val toggleStar: (String) -> Unit = { key ->
+            store.starredSettings =
+                if (key in store.starredSettings) store.starredSettings - key
+                else store.starredSettings + key
+            refresh++
+        }
 
         Column(
             modifier = Modifier
@@ -159,12 +179,12 @@ private fun SettingsScreen(onClose: () -> Unit) {
             AccordionSection("바텀시트", "바텀시트" in openSections, { toggleSection("바텀시트") }) {
                 SettingRow(
                     "기본 동작", sheetModeLabel(sheetMode),
-                    star = { StarToggle(store, ParkingStore.STAR_SHEET_MODE, starChanged) }
+                    star = { StarToggle(ParkingStore.STAR_SHEET_MODE in starredSet) { toggleStar(ParkingStore.STAR_SHEET_MODE) } }
                 ) { activeSheet = "sheet_mode" }
                 SettingRow(
                     "등록 확인",
                     if (confirmCard) "확인 카드 띄우기" else "바로 등록",
-                    star = { StarToggle(store, ParkingStore.STAR_CONFIRM, starChanged) }
+                    star = { StarToggle(ParkingStore.STAR_CONFIRM in starredSet) { toggleStar(ParkingStore.STAR_CONFIRM) } }
                 ) { activeSheet = "confirm_card" }
                 Text(
                     "위치마다 다르게 하려면 위 위치를 눌러 바꿔주세요",
@@ -177,14 +197,14 @@ private fun SettingsScreen(onClose: () -> Unit) {
             AccordionSection("알림", "알림" in openSections, { toggleSection("알림") }) {
                 SettingRow(
                     "표시 방식", displayModeLabel(displayMode),
-                    star = { StarToggle(store, ParkingStore.STAR_DISPLAY, starChanged) }
+                    star = { StarToggle(ParkingStore.STAR_DISPLAY in starredSet) { toggleStar(ParkingStore.STAR_DISPLAY) } }
                 ) { activeSheet = "display" }
             }
 
             AccordionSection("감지", "감지" in openSections, { toggleSection("감지") }) {
                 SwitchRow(
                     "자동감지", pressureOn,
-                    star = { StarToggle(store, ParkingStore.STAR_PRESSURE, starChanged) }
+                    star = { StarToggle(ParkingStore.STAR_PRESSURE in starredSet) { toggleStar(ParkingStore.STAR_PRESSURE) } }
                 ) {
                     store.pressureAutoDetect = it
                     refresh++
@@ -223,12 +243,12 @@ private fun SettingsScreen(onClose: () -> Unit) {
             AccordionSection("기타", "기타" in openSections, { toggleSection("기타") }) {
                 SettingRow(
                     "테마", themeModeLabel(themeMode),
-                    star = { StarToggle(store, ParkingStore.STAR_THEME, starChanged) }
+                    star = { StarToggle(ParkingStore.STAR_THEME in starredSet) { toggleStar(ParkingStore.STAR_THEME) } }
                 ) { activeSheet = "theme" }
                 UpdateCheckRow()
                 SwitchRow(
                     "출차 시 자동 삭제", autoClear,
-                    star = { StarToggle(store, ParkingStore.STAR_AUTO_CLEAR, starChanged) }
+                    star = { StarToggle(ParkingStore.STAR_AUTO_CLEAR in starredSet) { toggleStar(ParkingStore.STAR_AUTO_CLEAR) } }
                 ) {
                     store.autoClearOnDeparture = it
                     refresh++
@@ -685,7 +705,8 @@ private fun LotModal(
                                         .filterValues { it.isNotBlank() },
                                     lastFloor = profile?.lastFloor,
                                     sheetMode = sheetMode,
-                                    pressureOffsetFloors = profile?.pressureOffsetFloors ?: 0
+                                    pressureOffsetFloors = profile?.pressureOffsetFloors ?: 0,
+                                    pressureCalibrated = profile?.pressureCalibrated ?: false
                                 )
                             )
                             onDismiss()
@@ -787,23 +808,24 @@ private fun AccordionSection(
     }
 }
 
-/** ★ 토글: 이 설정을 대시보드 빠른 설정(미리보기)에 올린다 (v3.7) */
+/**
+ * ★ 토글: 이 설정을 대시보드 빠른 설정(미리보기)에 올린다.
+ * starred를 파라미터로 받아야 리컴포지션이 스킵되지 않는다 (strong skipping — v3.9).
+ */
 @Composable
-private fun StarToggle(store: ParkingStore, key: String, onChanged: () -> Unit) {
-    val starred = key in store.starredSettings
-    Text(
-        if (starred) "★" else "☆",
-        style = AppType.Body,
-        color = if (starred) Concrete.Neon else Concrete.TextDim,
+private fun StarToggle(starred: Boolean, onToggle: () -> Unit) {
+    Box(
         modifier = Modifier
-            .clickable {
-                store.starredSettings =
-                    if (starred) store.starredSettings - key
-                    else store.starredSettings + key
-                onChanged()
-            }
-            .padding(start = 12.dp, top = 2.dp, bottom = 2.dp)
-    )
+            .size(44.dp)
+            .clickable(onClick = onToggle),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            if (starred) "★" else "☆",
+            style = AppType.Title,
+            color = if (starred) Concrete.Neon else Concrete.TextDim
+        )
+    }
 }
 
 @Composable

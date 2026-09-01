@@ -103,6 +103,7 @@ fun DashboardScreen() {
     val zone = remember(refreshKey) { store.currentZone() }
     val memo = remember(refreshKey) { store.currentMemo() }
     val lotName = remember(refreshKey) { store.currentLot()?.name }
+    val address = remember(refreshKey) { store.approximateAddress() } // v3.9 대략적 GPS 주소
     val startedAt = remember(refreshKey) { store.parkingStartedAt() }
     val photoUri = remember(refreshKey) { store.photoUri }
     val detecting = remember(refreshKey) { store.onboardingDone && store.myCarAddress != null }
@@ -192,6 +193,43 @@ fun DashboardScreen() {
             }
         }
 
+        // ── 배터리 최적화 예외 안내 (삼성 등에서 감지가 끊기는 최대 원인 — v3.9) ──
+        val batteryExempt = remember(refreshKey) {
+            runCatching {
+                (context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager)
+                    .isIgnoringBatteryOptimizations(context.packageName)
+            }.getOrDefault(true)
+        }
+        if (detecting && !batteryExempt) {
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Concrete.BgDeep, RoundedCornerShape(12.dp))
+                    .clickable {
+                        runCatching {
+                            context.startActivity(
+                                Intent(
+                                    android.provider.Settings
+                                        .ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                    Uri.parse("package:${context.packageName}")
+                                )
+                            )
+                        }
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "감지가 끊기지 않게 배터리 예외를 허용해주세요",
+                    style = AppType.BodySmall,
+                    color = Concrete.TextBody
+                )
+                Spacer(Modifier.weight(1f))
+                Text("허용", style = AppType.BodySmall, color = Concrete.NeonLight)
+            }
+        }
+
         Spacer(Modifier.height(16.dp))
 
         // ── 계기판 카드 ──
@@ -206,8 +244,9 @@ fun DashboardScreen() {
                 Spacer(Modifier.size(20.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     if (isParked) {
+                        // 위치명 > 역지오코딩 주소 > 폴백 (v3.9)
                         Text(
-                            lotName ?: "주차 위치 저장됨",
+                            lotName ?: address?.let { "$it 근처" } ?: "주차 위치 저장됨",
                             style = AppType.Body,
                             color = Concrete.TextMain
                         )
@@ -264,43 +303,68 @@ fun DashboardScreen() {
 
         Spacer(Modifier.height(12.dp))
 
-        // ── 최근 주차 카드 ──
+        // ── 최근 주차 카드 (토글로 접기/펼치기 — v3.9) ──
         if (recent.isNotEmpty()) {
+            var recentExpanded by remember { mutableStateOf(false) }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Concrete.BgDeep, RoundedCornerShape(16.dp))
-                    .clickable {
-                        context.startActivity(Intent(context, HistoryActivity::class.java))
-                    }
-                    .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .animateContentSize(animationSpec = tween(180))
+                    .padding(horizontal = 18.dp, vertical = 14.dp)
             ) {
-                Row {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { recentExpanded = !recentExpanded },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text("최근 주차", style = AppType.SectionLabel, color = Concrete.TextDim)
                     Spacer(Modifier.weight(1f))
-                    Text("전체 보기 ›", style = AppType.Hint, color = Concrete.TextDim)
+                    Text(
+                        if (recentExpanded) "▴" else "▾",
+                        style = AppType.BodySmall,
+                        color = Concrete.TextDim
+                    )
                 }
-                recent.forEach { record ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            formatDate(record.endedAt),
-                            style = AppType.BodySmall,
-                            color = Concrete.TextDim
-                        )
-                        Spacer(Modifier.size(10.dp))
-                        Text(
-                            record.lotName ?: "이름 없는 주차장",
-                            style = AppType.BodySmall,
-                            color = Concrete.TextBody
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            record.floor ?: "—",
-                            style = AppType.BodySmall,
-                            color = Concrete.TextSub
-                        )
+                if (recentExpanded) {
+                    Spacer(Modifier.height(10.dp))
+                    recent.forEach { record ->
+                        Row(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                formatDate(record.endedAt),
+                                style = AppType.BodySmall,
+                                color = Concrete.TextDim
+                            )
+                            Spacer(Modifier.size(10.dp))
+                            Text(
+                                record.lotName ?: "이름 없는 주차장",
+                                style = AppType.BodySmall,
+                                color = Concrete.TextBody
+                            )
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                record.floor ?: "—",
+                                style = AppType.BodySmall,
+                                color = Concrete.TextSub
+                            )
+                        }
                     }
+                    Text(
+                        "전체 보기 →",
+                        style = AppType.BodySmall,
+                        color = Concrete.TextSub,
+                        modifier = Modifier
+                            .clickable {
+                                context.startActivity(
+                                    Intent(context, HistoryActivity::class.java)
+                                )
+                            }
+                            .padding(vertical = 6.dp)
+                    )
                 }
             }
             Spacer(Modifier.height(12.dp))
