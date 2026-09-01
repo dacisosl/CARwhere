@@ -1,0 +1,48 @@
+name: Build and release APK
+
+# main에 푸시될 때마다 서명된 APK를 빌드해 GitHub Release로 배포.
+# 앱의 업데이트 확인 기능이 releases/latest의 태그(v{versionCode})와 비교한다.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Restore keystore from secret
+        run: echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > release.keystore
+
+      - name: Build signed release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          ./gradlew assembleRelease --no-daemon \
+            -PversionCode=$VERSION_CODE \
+            -PversionName=1.0.$GITHUB_RUN_NUMBER
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          cp "$APK" naechawichi-v$VERSION_CODE.apk
+          gh release create "v$VERSION_CODE" "naechawichi-v$VERSION_CODE.apk" \
+            --latest \
+            --title "내차위치 v$VERSION_CODE" \
+            --notes "자동 빌드 (커밋 ${GITHUB_SHA::7})"

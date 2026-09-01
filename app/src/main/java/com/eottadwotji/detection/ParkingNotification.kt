@@ -10,6 +10,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.Typeface
 import androidx.core.app.NotificationCompat
 import androidx.core.graphics.drawable.IconCompat
@@ -143,22 +145,29 @@ object ParkingNotification {
     }
 
     /**
-     * "B3" 텍스트를 그린 정사각 비트맵 생성.
-     * 상태바 아이콘은 알파 채널만 사용되므로 흰색으로 그림.
+     * 형광 필 스타일 상태바 아이콘: 꽉 찬 둥근 사각형에서 글자를 뚫어낸(cutout) 비트맵.
+     * 상태바는 시스템이 단색 처리하지만 필 실루엣이라 훨씬 눈에 띄고,
+     * 알림창/잠금화면에서는 setColor(#97C459) 틴트로 형광 그린 필이 된다.
      */
     private fun renderTextIcon(text: String): Bitmap {
         val size = 96
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
+
+        // 필 배경 (불투명 영역이 틴트 대상)
+        val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        canvas.drawRoundRect(2f, 14f, size - 2f, size - 14f, 34f, 34f, pill)
+
+        // 글자를 투명하게 뚫기 — 필 위에 글씨가 도드라져 보이는 효과
+        val punch = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
             // 글자 수에 따라 크기 조정 (B3=2자 크게, B12=3자 작게)
-            textSize = if (text.length <= 2) 64f else 46f
+            textSize = if (text.length <= 2) 56f else 42f
+            xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
         }
-        val y = size / 2f - (paint.descent() + paint.ascent()) / 2f
-        canvas.drawText(text, size / 2f, y, paint)
+        val y = size / 2f - (punch.descent() + punch.ascent()) / 2f
+        canvas.drawText(text, size / 2f, y, punch)
         return bitmap
     }
 

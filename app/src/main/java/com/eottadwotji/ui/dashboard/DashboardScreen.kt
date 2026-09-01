@@ -52,6 +52,7 @@ import com.eottadwotji.data.HistoryDb
 import com.eottadwotji.data.ParkingRecord
 import com.eottadwotji.data.ParkingStore
 import com.eottadwotji.data.PhotoStore
+import com.eottadwotji.data.UpdateChecker
 import com.eottadwotji.detection.ParkingDetectionService
 import com.eottadwotji.ui.components.CircularGauge
 import com.eottadwotji.ui.floorpicker.FloorPickerActivity
@@ -109,6 +110,13 @@ fun DashboardScreen() {
     }
     val recent by recentFlow.collectAsState(initial = emptyList())
 
+    // 새 버전 확인 (GitHub Releases) — 실패하면 조용히 무시
+    var update by remember { mutableStateOf<UpdateChecker.Update?>(null) }
+    var downloading by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        UpdateChecker.check(BuildConfig.VERSION_CODE) { update = it }
+    }
+
     var showPhotoDialog by remember { mutableStateOf(false) }
     var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(
@@ -150,6 +158,33 @@ fun DashboardScreen() {
                     style = AppType.Hint,
                     color = if (detecting) Concrete.NeonLight else Concrete.TextDim
                 )
+            }
+        }
+
+        // ── 업데이트 배너 (새 버전이 있을 때만) ──
+        update?.let { u ->
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Concrete.BgDeep, RoundedCornerShape(12.dp))
+                    .clickable(enabled = !downloading) {
+                        downloading = true
+                        UpdateChecker.downloadAndInstall(context, u)
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    if (downloading) "다운로드 중 — 완료되면 설치 화면이 떠요"
+                    else "새 버전 ${u.label} 나왔어요",
+                    style = AppType.BodySmall,
+                    color = Concrete.TextBody
+                )
+                Spacer(Modifier.weight(1f))
+                if (!downloading) {
+                    Text("업데이트", style = AppType.BodySmall, color = Concrete.NeonLight)
+                }
             }
         }
 

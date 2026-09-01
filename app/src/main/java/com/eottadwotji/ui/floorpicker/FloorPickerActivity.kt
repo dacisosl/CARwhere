@@ -130,22 +130,14 @@ class FloorPickerActivity : ComponentActivity() {
         val context = LocalContext.current
 
         var lot by remember { mutableStateOf(store.currentLot()) }
+        // 새 위치 등록(SETUP)은 좌표를 알 때만 묻는다 — 좌표가 없으면 등록해도
+        // 반경 매칭이 불가능한 유령 위치만 쌓이므로 바로 층 선택으로 간다.
         var phase by remember {
-            mutableStateOf(if (lot != null) Phase.FLOOR else Phase.SETUP)
+            mutableStateOf(
+                if (lot == null && store.coordinates() != null) Phase.SETUP else Phase.FLOOR
+            )
         }
         var interacted by remember { mutableStateOf(false) }
-
-        // 수동 기록은 좌표 조회가 비동기 → 잠시 후 매칭 재확인해서 SETUP을 건너뛴다
-        LaunchedEffect(Unit) {
-            if (lot == null) {
-                delay(LOT_RECHECK_MS)
-                val matched = store.currentLot()
-                if (matched != null && !interacted) {
-                    lot = matched
-                    phase = Phase.FLOOR
-                }
-            }
-        }
 
         val floors = remember(lot) { lot?.floors ?: ParkingLotProfile.DEFAULT_FLOORS }
         val lastFloor = remember(lot) { store.lastFloorForCurrentLocation() }
@@ -153,6 +145,24 @@ class FloorPickerActivity : ComponentActivity() {
 
         var selectedFloor by remember { mutableStateOf<String?>(null) }
         var finishAfterCamera by remember { mutableStateOf(false) }
+
+        // 수동 기록은 좌표 조회가 비동기 → 잠시 후 다시 판정
+        LaunchedEffect(Unit) {
+            if (lot == null) {
+                delay(LOT_RECHECK_MS)
+                if (interacted) return@LaunchedEffect
+                val matched = store.currentLot()
+                when {
+                    matched != null -> {
+                        lot = matched
+                        phase = Phase.FLOOR
+                    }
+                    // 좌표가 늦게 도착했고 매칭 실패 → 이제 새 위치 등록을 물을 수 있다
+                    store.coordinates() != null && phase == Phase.FLOOR &&
+                        selectedFloor == null -> phase = Phase.SETUP
+                }
+            }
+        }
 
         var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
         val cameraLauncher = rememberLauncherForActivityResult(

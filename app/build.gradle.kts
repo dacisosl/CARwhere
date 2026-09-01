@@ -13,13 +13,30 @@ android {
         applicationId = "com.eottadwotji"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI(GitHub Actions)가 -PversionCode/-PversionName으로 주입 — 앱 내 업데이트 비교 기준
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 1
+        versionName = (project.findProperty("versionName") as String?) ?: "0.1.0-dev"
+    }
+
+    // 릴리스 서명: CI는 시크릿에서 복원한 release.keystore 사용 (로컬엔 gitignore로 보관)
+    signingConfigs {
+        create("release") {
+            val ksFile = rootProject.file("release.keystore")
+            if (ksFile.exists()) {
+                storeFile = ksFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "carwhere2026"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "carwhere"
+                keyPassword = System.getenv("KEYSTORE_PASSWORD") ?: "carwhere2026"
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (rootProject.file("release.keystore").exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
