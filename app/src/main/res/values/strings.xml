@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">내차위치</string>
+    <string name="widget_pill_desc">주차 층·장소를 형광 필로 표시</string>
+    <string name="widget_gauge_desc">주차 층수 미니 게이지</string>
+</resources>
