@@ -165,6 +165,9 @@ class FloorPickerActivity : ComponentActivity() {
         var forcedNext by remember { mutableStateOf<String?>(null) }
         // SETUP의 이전 버튼이 돌아갈 화면 (자동 진입=FLOOR, 위치 선택 경유=LOT_SELECT)
         var setupFrom by remember { mutableStateOf(Phase.FLOOR) }
+        // 위치 편집 모달 (v3.9.5 — 공용 LotEditModal)
+        var editLot by remember { mutableStateOf<ParkingLotProfile?>(null) }
+        var lotListVersion by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
         // 수동 기록은 좌표 조회가 비동기 → 매칭될 때까지 잠시 폴링 (최대 ~2.4초).
         // 등록된 위치로 판명되면 그 위치의 층 구성만 표시된다 (v3.6 — 해당 층수만).
@@ -365,7 +368,9 @@ class FloorPickerActivity : ComponentActivity() {
 
                     when (phase) {
                         Phase.LOT_SELECT -> LotSelectList(
-                            profiles = store.profiles().sortedBy { it.name },
+                            profiles = remember(lotListVersion) {
+                                store.profiles().sortedBy { it.name }
+                            },
                             currentLotId = lot?.id,
                             onPick = { picked ->
                                 interacted = true
@@ -374,15 +379,8 @@ class FloorPickerActivity : ComponentActivity() {
                                 phase = Phase.FLOOR
                             },
                             onEdit = { picked ->
-                                context.startActivity(
-                                    android.content.Intent(
-                                        context,
-                                        com.eottadwotji.ui.settings.SettingsActivity::class.java
-                                    ).putExtra(
-                                        com.eottadwotji.ui.settings.SettingsActivity.EXTRA_EDIT_LOT_ID,
-                                        picked.id
-                                    )
-                                )
+                                interacted = true
+                                editLot = picked
                             },
                             onNew = {
                                 interacted = true
@@ -502,6 +500,19 @@ class FloorPickerActivity : ComponentActivity() {
                     Spacer(Modifier.height(16.dp))
                 }
             }
+        }
+
+        // 위치 편집 모달 — 수정·삭제 후 목록/현재 위치 반영 (v3.9.5)
+        if (editLot != null) {
+            com.eottadwotji.ui.components.LotEditModal(
+                store = store,
+                profile = editLot,
+                onDismiss = {
+                    editLot = null
+                    lotListVersion++
+                    lot = store.currentLot()
+                }
+            )
         }
     }
 }

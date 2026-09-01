@@ -73,33 +73,24 @@ import java.util.UUID
  */
 class SettingsActivity : ComponentActivity() {
 
-    companion object {
-        /** 바텀시트의 위치 편집 버튼에서 특정 위치 모달을 바로 연다 (v3.9) */
-        const val EXTRA_EDIT_LOT_ID = "edit_lot_id"
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val editLotId = intent.getStringExtra(EXTRA_EDIT_LOT_ID)
         setContent {
             EottadwotjiTheme {
-                SettingsScreen(onClose = { finish() }, initialEditLotId = editLotId)
+                SettingsScreen(onClose = { finish() })
             }
         }
     }
 }
 
 @Composable
-private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null) {
+private fun SettingsScreen(onClose: () -> Unit) {
     val context = LocalContext.current
     val store = remember { ParkingStore(context) }
     var refresh by remember { mutableIntStateOf(0) }
 
-    val profiles = remember(refresh) { profilesSorted(store) }
     val sheetMode = remember(refresh) { store.defaultSheetMode }
-    val displayMode = remember(refresh) { store.displayMode }
     val pressureOn = remember(refresh) { store.pressureAutoDetect }
-    val autoClear = remember(refresh) { store.autoClearOnDeparture }
     val myCarName = remember(refresh) { store.myCarName }
     val overlayGranted = remember(refresh) { Settings.canDrawOverlays(context) }
     val themeMode = remember(refresh) { store.themeMode }
@@ -108,13 +99,6 @@ private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
 
     var activeSheet by remember { mutableStateOf<String?>(null) }
-    // 위치 모달: null=닫힘, 빈 id=새 위치. 바텀시트 편집 버튼 경유 시 바로 연다 (v3.9)
-    var editingLot by remember {
-        mutableStateOf<ParkingLotProfile?>(
-            initialEditLotId?.let { id -> store.profiles().firstOrNull { it.id == id } }
-        )
-    }
-    var creatingLot by remember { mutableStateOf(false) }
     var showIconModal by remember { mutableStateOf(false) }
     val iconCar = remember(refresh) { store.appIconCar }
     val iconColor = remember(refresh) { store.appIconColor }
@@ -139,7 +123,7 @@ private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null
 
         // v3.7: 아코디언 구조 — 섹션을 누르면 그 자리에서 접힌다. 기본은 전부 열림 (v3.9)
         var openSections by remember {
-            mutableStateOf(setOf("위치", "바텀시트", "알림", "감지", "앱 아이콘", "기타", "배터리"))
+            mutableStateOf(setOf("바텀시트", "알림", "감지", "앱 아이콘", "기타", "배터리"))
         }
         val toggleSection: (String) -> Unit = { name ->
             openSections =
@@ -166,17 +150,6 @@ private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null
                 modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
             )
 
-            AccordionSection("위치", "위치" in openSections, { toggleSection("위치") }) {
-                profiles.forEach { profile ->
-                    SettingRow(
-                        profile.name,
-                        floorsSummary(profile.floors) +
-                            if (profile.latitude != null) " · 위치 등록됨" else ""
-                    ) { editingLot = profile }
-                }
-                SettingRow("+ 위치 추가", "") { creatingLot = true }
-            }
-
             AccordionSection("바텀시트", "바텀시트" in openSections, { toggleSection("바텀시트") }) {
                 SettingRow(
                     "기본 동작", sheetModeLabel(sheetMode),
@@ -188,7 +161,7 @@ private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null
                     star = { StarToggle(ParkingStore.STAR_CONFIRM in starredSet) { toggleStar(ParkingStore.STAR_CONFIRM) } }
                 ) { activeSheet = "confirm_card" }
                 Text(
-                    "위치마다 다르게 하려면 위 위치를 눌러 바꿔주세요",
+                    "위치마다 다르게 하려면 대시보드의 위치 카드에서 바꿔주세요",
                     style = AppType.Hint,
                     color = Concrete.TextDim,
                     modifier = Modifier.padding(start = 4.dp, top = 2.dp)
@@ -196,10 +169,6 @@ private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null
             }
 
             AccordionSection("알림", "알림" in openSections, { toggleSection("알림") }) {
-                SettingRow(
-                    "표시 방식", displayModeLabel(displayMode),
-                    star = { StarToggle(ParkingStore.STAR_DISPLAY in starredSet) { toggleStar(ParkingStore.STAR_DISPLAY) } }
-                ) { activeSheet = "display" }
                 SettingRow("앱 알림 설정 열기", "카테고리·중요도 확인") {
                     runCatching {
                         context.startActivity(
@@ -263,13 +232,6 @@ private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null
                     star = { StarToggle(ParkingStore.STAR_THEME in starredSet) { toggleStar(ParkingStore.STAR_THEME) } }
                 ) { activeSheet = "theme" }
                 UpdateCheckRow()
-                SwitchRow(
-                    "출차 시 자동 삭제", autoClear,
-                    star = { StarToggle(ParkingStore.STAR_AUTO_CLEAR in starredSet) { toggleStar(ParkingStore.STAR_AUTO_CLEAR) } }
-                ) {
-                    store.autoClearOnDeparture = it
-                    refresh++
-                }
                 SwitchRow("대시보드 최근 주차 카드", showRecent) {
                     store.showRecentCard = it
                     refresh++
@@ -310,24 +272,6 @@ private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null
             onSelect = { store.defaultSheetMode = it },
             onDismiss = { activeSheet = null; refresh++ }
         )
-        "display" -> OptionSheet(
-            title = "표시 방식",
-            options = listOf(
-                ParkingStore.DISPLAY_STATUSBAR to "상태바만",
-                ParkingStore.DISPLAY_WIDGET to "홈 위젯만",
-                ParkingStore.DISPLAY_BOTH to "홈 위젯 + 상태바"
-            ),
-            current = displayMode,
-            onSelect = {
-                store.displayMode = it
-                // 표시 방식 변경 즉시 반영: 상시 알림 상태 + 홈 위젯 (v3.6)
-                if (store.hasActiveParking()) {
-                    com.eottadwotji.detection.ParkingDetectionService.refresh(context)
-                }
-                com.eottadwotji.ui.widget.WidgetUpdater.update(context)
-            },
-            onDismiss = { activeSheet = null; refresh++ }
-        )
         "theme" -> OptionSheet(
             title = "테마",
             options = listOf(
@@ -353,19 +297,6 @@ private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null
             onDismiss = { activeSheet = null; refresh++ }
         )
         "car" -> CarPickerSheet(store, onDismiss = { activeSheet = null; refresh++ })
-    }
-
-    // ── 위치 모달 ──
-    if (creatingLot || editingLot != null) {
-        LotModal(
-            store = store,
-            profile = editingLot,
-            onDismiss = {
-                creatingLot = false
-                editingLot = null
-                refresh++
-            }
-        )
     }
 
     // ── 앱 아이콘 모달 ──
@@ -528,232 +459,6 @@ private fun iconPreviewRes(car: String?, color: String): Int = when (car) {
     else -> com.eottadwotji.R.drawable.ic_fg_sedan_white // 기본 = 흰색 중형차 (v3.5)
 }
 
-// ── 위치 모달창 (v3) ────────────────────────────────────────
-
-@Composable
-private fun LotModal(
-    store: ParkingStore,
-    profile: ParkingLotProfile?,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-
-    var name by remember { mutableStateOf(profile?.name ?: "") }
-    var candidates by remember {
-        mutableStateOf(
-            ParkingLotProfile.sortFloors(
-                ParkingLotProfile.DEFAULT_FLOORS + (profile?.floors ?: emptyList())
-            )
-        )
-    }
-    var selected by remember {
-        mutableStateOf(profile?.floors?.toSet() ?: ParkingLotProfile.DEFAULT_FLOORS.toSet())
-    }
-    var sheetMode by remember { mutableStateOf(profile?.sheetMode) } // null = 기본값 따름
-    var lat by remember { mutableStateOf(profile?.latitude) }
-    var lon by remember { mutableStateOf(profile?.longitude) }
-    var locationStatus by remember { mutableStateOf<String?>(null) }
-    var memos by remember { mutableStateOf(profile?.memos ?: emptyMap()) }
-
-    Dialog(onDismissRequest = onDismiss) {
-        // 키보드가 저장 버튼을 가리지 않게 — 다이얼로그 창을 키보드만큼 리사이즈 (v3.9.2)
-        val dialogView = androidx.compose.ui.platform.LocalView.current
-        androidx.compose.runtime.SideEffect {
-            (dialogView.parent as? androidx.compose.ui.window.DialogWindowProvider)
-                ?.window
-                ?.setSoftInputMode(
-                    android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-                )
-        }
-        Column(
-            modifier = Modifier
-                .background(Concrete.BgDeep, RoundedCornerShape(16.dp))
-                .padding(20.dp)
-                .heightIn(max = 560.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Text(
-                if (profile == null) "위치 추가" else "위치 편집",
-                style = AppType.Title,
-                color = Concrete.TextMain
-            )
-
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("위치 이름 (예: 우리 아파트)", style = AppType.BodySmall) },
-                singleLine = true,
-                colors = modalFieldColors(),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // 층 구성: 지상 1~3 + 지하 1~3 기본, "+"로 확장, 탭으로 선택
-            Text("층 구성", style = AppType.SectionLabel, color = Concrete.TextDim)
-            FloorSelector(
-                candidates = candidates,
-                selected = selected,
-                onToggle = { floor ->
-                    selected = if (floor in selected) selected - floor else selected + floor
-                },
-                onExtendUp = {
-                    val next = "${candidates.count { !ParkingLotProfile.isBasement(it) } + 1}F"
-                    candidates = ParkingLotProfile.sortFloors(candidates + next)
-                },
-                onExtendDown = {
-                    val next = "B${candidates.count { ParkingLotProfile.isBasement(it) } + 1}"
-                    candidates = ParkingLotProfile.sortFloors(candidates + next)
-                }
-            )
-
-            // 이 위치의 바텀시트 모드 (기본값 따름 / 층수만 / 층+메모 / 층+사진)
-            Text("바텀시트", style = AppType.SectionLabel, color = Concrete.TextDim)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(
-                    null to "기본값 따름 (${sheetModeLabel(store.defaultSheetMode)})",
-                    ParkingStore.SHEET_FLOOR to "층수만",
-                    ParkingStore.SHEET_FLOOR_MEMO to "층 + 메모",
-                    ParkingStore.SHEET_FLOOR_PHOTO to "층 + 사진"
-                ).forEach { (value, label) ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { sheetMode = value }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            label,
-                            style = AppType.BodySmall,
-                            color = if (sheetMode == value) Concrete.NeonLight
-                            else Concrete.TextBody
-                        )
-                        Spacer(Modifier.weight(1f))
-                        if (sheetMode == value) {
-                            Text("✓", style = AppType.BodySmall, color = Concrete.Neon)
-                        }
-                    }
-                }
-            }
-
-            // 층별 메모 (선택된 층만)
-            Text("층별 메모 (선택)", style = AppType.SectionLabel, color = Concrete.TextDim)
-            ParkingLotProfile.sortFloors(selected.toList()).forEach { floor ->
-                OutlinedTextField(
-                    value = memos[floor] ?: "",
-                    onValueChange = { memos = memos + (floor to it) },
-                    label = { Text("$floor 메모", style = AppType.BodySmall) },
-                    singleLine = true,
-                    colors = modalFieldColors(),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            // 좌표 등록 — 반경 150m 자동 매칭
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    if (lat != null) "위치 등록됨 ✓" else "위치 미등록",
-                    style = AppType.BodySmall,
-                    color = if (lat != null) Concrete.NeonLight else Concrete.TextSub
-                )
-                Text(
-                    "등록하면 이 근처(150m)에 주차할 때 자동으로 이 설정을 써요",
-                    style = AppType.Hint,
-                    color = Concrete.TextDim
-                )
-                Text(
-                    "현재 위치로 등록",
-                    style = AppType.BodySmall,
-                    color = Concrete.TextBody,
-                    modifier = Modifier
-                        .clickable {
-                            fetchLocation(context) { newLat, newLon ->
-                                if (newLat != null && newLon != null) {
-                                    lat = newLat
-                                    lon = newLon
-                                    locationStatus = "현재 위치로 등록했어요"
-                                } else {
-                                    locationStatus = "위치를 가져올 수 없어요 (권한/GPS 확인)"
-                                }
-                            }
-                        }
-                        .padding(vertical = 4.dp)
-                )
-                locationStatus?.let { Text(it, style = AppType.Hint, color = Concrete.TextDim) }
-            }
-
-            if (profile != null) {
-                Text(
-                    "이 위치 삭제",
-                    style = AppType.BodySmall,
-                    color = Concrete.TextDim,
-                    modifier = Modifier
-                        .clickable {
-                            store.deleteProfile(profile.id)
-                            onDismiss()
-                        }
-                        .padding(vertical = 4.dp)
-                )
-            }
-
-            // 저장/닫기
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(46.dp)
-                        .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
-                        .clickable(onClick = onDismiss),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("닫기", style = AppType.BodySmall, color = Concrete.TextSub)
-                }
-                val canSave = name.isNotBlank() && selected.isNotEmpty()
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(46.dp)
-                        .background(
-                            if (canSave) Concrete.Neon else Concrete.BgPanel,
-                            RoundedCornerShape(8.dp)
-                        )
-                        .clickable(enabled = canSave) {
-                            store.saveProfile(
-                                ParkingLotProfile(
-                                    id = profile?.id ?: UUID.randomUUID().toString(),
-                                    name = name.trim(),
-                                    latitude = lat,
-                                    longitude = lon,
-                                    floors = ParkingLotProfile.sortFloors(selected.toList()),
-                                    memos = memos.filterKeys { it in selected }
-                                        .filterValues { it.isNotBlank() },
-                                    lastFloor = profile?.lastFloor,
-                                    sheetMode = sheetMode,
-                                    pressureOffsetFloors = profile?.pressureOffsetFloors ?: 0,
-                                    pressureCalibrated = profile?.pressureCalibrated ?: false
-                                )
-                            )
-                            onDismiss()
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "저장",
-                        style = AppType.FloorButton,
-                        color = if (canSave) Concrete.NeonDeep else Concrete.TextDim
-                    )
-                }
-            }
-        }
-    }
-}
-
 /** 업데이트 확인 (v3.4): 탭 → 릴리스 조회 → 새 버전 있으면 한 번 더 탭해서 설치 */
 @Composable
 private fun UpdateCheckRow() {
@@ -783,17 +488,6 @@ private fun UpdateCheckRow() {
         }
     }
 }
-
-@Composable
-private fun modalFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = Concrete.Neon,
-    unfocusedBorderColor = Concrete.Border,
-    focusedTextColor = Concrete.TextMain,
-    unfocusedTextColor = Concrete.TextMain,
-    cursorColor = Concrete.Neon,
-    focusedLabelColor = Concrete.TextSub,
-    unfocusedLabelColor = Concrete.TextDim
-)
 
 // ── 행 컴포넌트 ─────────────────────────────────────────────
 
@@ -1037,14 +731,6 @@ private fun CarPickerSheet(store: ParkingStore, onDismiss: () -> Unit) {
 
 // ── 헬퍼 ────────────────────────────────────────────────────
 
-private fun profilesSorted(store: ParkingStore): List<ParkingLotProfile> =
-    store.profiles().sortedBy { it.name }
-
-private fun floorsSummary(floors: List<String>): String {
-    val sorted = ParkingLotProfile.sortFloors(floors)
-    return if (sorted.isEmpty()) "" else "${sorted.first()}~${sorted.last()}"
-}
-
 @SuppressLint("MissingPermission") // 호출부에서 BLUETOOTH_CONNECT 확인 + 여기서도 재확인
 private fun bondedDevices(context: Context): List<Pair<String, String>> {
     val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
@@ -1057,30 +743,6 @@ private fun bondedDevices(context: Context): List<Pair<String, String>> {
             ?: return emptyList()
         adapter.bondedDevices.map { (it.name ?: it.address) to it.address }
     }.getOrDefault(emptyList())
-}
-
-private fun fetchLocation(context: Context, onResult: (Double?, Double?) -> Unit) {
-    val granted = ContextCompat.checkSelfPermission(
-        context, Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
-    if (!granted) {
-        onResult(null, null)
-        return
-    }
-    runCatching {
-        LocationServices.getFusedLocationProviderClient(context)
-            .lastLocation
-            .addOnSuccessListener { location ->
-                onResult(location?.latitude, location?.longitude)
-            }
-            .addOnFailureListener { onResult(null, null) }
-    }.onFailure { onResult(null, null) }
-}
-
-private fun displayModeLabel(mode: String): String = when (mode) {
-    ParkingStore.DISPLAY_WIDGET -> "홈 위젯만"
-    ParkingStore.DISPLAY_BOTH -> "홈 위젯 + 상태바"
-    else -> "상태바만"
 }
 
 private fun sheetModeLabel(mode: String): String = when (mode) {

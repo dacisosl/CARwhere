@@ -50,6 +50,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // 주차 캡슐 복원 — 일반 알림이라 업데이트·재부팅 후에도 여기서 되살린다 (v3.9.5)
+        com.eottadwotji.detection.ParkingNotification.syncParkedNotification(this)
         startDetectionIfReady()
     }
 

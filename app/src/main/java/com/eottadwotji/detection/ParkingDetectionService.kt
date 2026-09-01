@@ -55,30 +55,21 @@ class ParkingDetectionService : Service(), SensorEventListener {
         private const val PRESSURE_SAMPLING_US = 1_000_000 // 1초 — 저빈도 (배터리)
         private const val PRESSURE_EMA_ALPHA = 0.3f        // 노이즈 완화용 지수평활
 
-        private const val ACTION_START = "com.eottadwotji.START_DETECTION"
         private const val ACTION_CAR_DISCONNECTED = "com.eottadwotji.CAR_DISCONNECTED"
         private const val ACTION_CAR_CONNECTED = "com.eottadwotji.CAR_CONNECTED"
-        private const val ACTION_REFRESH = "com.eottadwotji.REFRESH_NOTIFICATION"
 
         /**
-         * 앱 실행/부팅 시: 주차 중일 때만 서비스를 붙여 P·B3 캡슐을 복원한다.
-         * 대기 상태에서는 서비스가 필요 없다 — BT 브로드캐스트가 깨운다 (v3.6).
+         * 앱 실행/부팅 시: 주차 캡슐 알림만 복원한다 (v3.9.5).
+         * 캡슐은 서비스와 분리된 일반 알림이라 서비스를 띄울 필요가 없다 —
+         * 대기 상태의 감지는 BT 브로드캐스트가 서비스를 깨워서 처리.
          */
         fun start(context: Context) {
-            if (ParkingStore(context).hasActiveParking()) {
-                context.startForegroundService(
-                    Intent(context, ParkingDetectionService::class.java)
-                        .setAction(ACTION_START)
-                )
-            }
+            ParkingNotification.syncParkedNotification(context)
         }
 
-        /** 설정 변경(표시 방식 등) 후 상시 알림 상태를 다시 계산 */
+        /** 설정 변경(표시 방식 등) 후 캡슐 표시 상태를 다시 계산 */
         fun refresh(context: Context) {
-            context.startForegroundService(
-                Intent(context, ParkingDetectionService::class.java)
-                    .setAction(ACTION_REFRESH)
-            )
+            ParkingNotification.syncParkedNotification(context)
         }
 
         fun notifyCarDisconnected(context: Context) {
@@ -108,9 +99,6 @@ class ParkingDetectionService : Service(), SensorEventListener {
     /** 서비스 생존 중엔 동적 등록도 병행 — 매니페스트 등록의 백업 (README) */
     private val dynamicReceiver = CarBluetoothReceiver()
 
-    /** 현재 게시된 상시 알림이 주차 캡슐인지 (채널 전환 감지용 — v3.9) */
-    private var shownParked: Boolean? = null
-
     override fun onCreate() {
         super.onCreate()
         val filter = IntentFilter().apply {
@@ -124,36 +112,23 @@ class ParkingDetectionService : Service(), SensorEventListener {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // startForegroundService 계약: 무조건 startForeground 먼저.
-        postForegroundNotification()
+        // 서비스 알림은 항상 "감지 중"(MIN — 상태바 미노출) 하나뿐 (v3.9.5).
+        // 주차 캡슐은 서비스와 분리된 일반 알림(ID 2)이라 서비스가 죽어도 남는다.
+        ServiceCompat.startForeground(
+            this,
+            ParkingNotification.SERVICE_NOTIFICATION_ID,
+            ParkingNotification.buildIdleNotification(this),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
+        )
 
         when (intent?.action) {
             ACTION_CAR_DISCONNECTED -> onCarDisconnected()
             ACTION_CAR_CONNECTED -> onCarConnected()
-            // ACTION_START / ACTION_REFRESH: 상태 재계산만 — 필요 없으면 즉시 종료
+            // 그 외: 감지할 것 없으면 즉시 종료
             else -> stopIfNothingToShow()
         }
         return START_STICKY
-    }
-
-    /**
-     * 상시 알림 게시 — 감지 중(MIN 채널) ↔ 주차 캡슐(LOW 채널) 전환 처리 (v3.9).
-     * Android는 이미 게시된 알림의 채널 변경을 무시하므로, 상태 클래스가 바뀌면
-     * stopForeground(REMOVE)로 제거한 뒤 신규 게시해야 채널(=상태바 노출)이 올바르게 적용된다.
-     * 이게 빠지면 감지 → 주차 전환 시 MIN에 갇혀 상태바 캡슐이 안 뜬다 (간헐 버그의 원인).
-     */
-    private fun postForegroundNotification() {
-        val wantParked = ParkingNotification.wantsParkedNotification(this)
-        if (shownParked != null && shownParked != wantParked) {
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-        }
-        ServiceCompat.startForeground(
-            this,
-            ParkingNotification.SERVICE_NOTIFICATION_ID,
-            ParkingNotification.buildServiceNotification(this),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
-        )
-        shownParked = wantParked
     }
 
     /** 하차 후보: 5초 안에 재연결이 없으면 진짜 주차로 판정 */
@@ -173,18 +148,17 @@ class ParkingDetectionService : Service(), SensorEventListener {
         cancelFloorTimeout()
 
         val store = ParkingStore(this)
-        var keepDepartedNotification = false
         if (store.hasActiveParking()) {
             store.expireParking()
-            // 자동 삭제 꺼짐: 출차 후에도 마지막 주차 표시를 남긴다 (스와이프로 지울 수 있음)
-            keepDepartedNotification = !store.autoClearOnDeparture
+            // 출차하면 캡슐 제거 (기록은 히스토리에 보관 — v3.9.5부터 항상 자동)
+            ParkingNotification.dismissParkedNotification(this)
             WidgetUpdater.update(this)
         }
 
         // 주행 시작 → 기압 샘플링 시작 (설정 켠 경우에만, 주행 중에만 — 배터리)
         if (store.pressureAutoDetect) startPressureSampling() else stopPressureSampling()
 
-        stopIfNothingToShow(keepNotification = keepDepartedNotification)
+        stopIfNothingToShow()
     }
 
     /** 주차 확정: GPS 좌표 1회 저장 → 기압 추정(위치 보정 반영) → 바텀시트(또는 알림 폴백) */
@@ -273,25 +247,14 @@ class ParkingDetectionService : Service(), SensorEventListener {
     }
 
     /**
-     * 서비스가 계속 떠 있어야 할 이유가 없으면 종료 (v3.6).
-     * 남는 이유: ① 상태바에 P·B3 표시 중 ② 하차 판정/층 선택 대기 중 ③ 주행 중 기압 샘플링.
-     * keepNotification=true면 알림을 떼어놓고(detach) 종료 — 출차 후 표시 유지 옵션.
+     * 서비스가 계속 떠 있어야 할 이유가 없으면 종료 (v3.9.5).
+     * 남는 이유: ① 하차 판정/층 선택 대기 창 ② 주행 중 기압 샘플링.
+     * 주차 캡슐은 서비스와 분리된 일반 알림이라 종료와 무관하게 유지된다.
      */
-    private fun stopIfNothingToShow(keepNotification: Boolean = false) {
-        val store = ParkingStore(this)
-        val showingParked = store.hasActiveParking() &&
-            store.displayMode != ParkingStore.DISPLAY_WIDGET
+    private fun stopIfNothingToShow() {
         val detectionWindow = pendingParkingRunnable != null || floorTimeoutRunnable != null
-        if (showingParked || detectionWindow || pressureRegistered) {
-            // 계속 표시해야 함 — 알림 내용만 최신으로
-            return
-        }
-        if (keepNotification) {
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
-        } else {
-            ParkingNotification.dismissParkedNotification(this)
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-        }
+        if (detectionWindow || pressureRegistered) return
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 

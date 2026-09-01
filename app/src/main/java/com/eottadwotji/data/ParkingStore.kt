@@ -42,15 +42,6 @@ class ParkingStore(context: Context) {
 
     // ── 설정 ────────────────────────────────────────────────
 
-    /** DISPLAY_STATUSBAR / DISPLAY_WIDGET / DISPLAY_BOTH (위젯 구현은 2차) */
-    var displayMode: String
-        get() = prefs.getString(KEY_DISPLAY_MODE, DISPLAY_STATUSBAR)!!
-        set(value) = prefs.edit().putString(KEY_DISPLAY_MODE, value).apply()
-
-    var autoClearOnDeparture: Boolean
-        get() = prefs.getBoolean(KEY_AUTO_CLEAR, true)
-        set(value) = prefs.edit().putBoolean(KEY_AUTO_CLEAR, value).apply()
-
     /**
      * v3: 전역 기본 바텀시트 모드 — SHEET_FLOOR / SHEET_FLOOR_MEMO / SHEET_FLOOR_PHOTO.
      * 기본값은 층+메모 (층수 선택 후 세부구역 입력 창 자동 표시).
@@ -88,9 +79,9 @@ class ParkingStore(context: Context) {
         get() = prefs.getStringSet(KEY_STARRED_SETTINGS, DEFAULT_STARRED)!!.toSet()
         set(value) = prefs.edit().putStringSet(KEY_STARRED_SETTINGS, value).apply()
 
-    /** v3.9.4: 대시보드에 최근 주차 카드를 띄울지 */
+    /** v3.9.4: 대시보드에 최근 주차 카드를 띄울지 (v3.9.5: 기본 숨김 — 대신 위치 카드) */
     var showRecentCard: Boolean
-        get() = prefs.getBoolean(KEY_SHOW_RECENT_CARD, true)
+        get() = prefs.getBoolean(KEY_SHOW_RECENT_CARD, false)
         set(value) = prefs.edit().putBoolean(KEY_SHOW_RECENT_CARD, value).apply()
 
     /** v3.9.4: 대시보드 빠른 설정 카드 펼침 상태 — 기본 열림, 닫고 나가면 그대로 유지 */
@@ -322,8 +313,6 @@ class ParkingStore(context: Context) {
         private const val KEY_MY_CAR_NAME = "my_car_bt_name"
         private const val KEY_MANUAL_ONLY = "manual_only_mode"
 
-        private const val KEY_DISPLAY_MODE = "display_mode"
-        private const val KEY_AUTO_CLEAR = "auto_clear_on_departure"
         private const val KEY_SHEET_MODE = "sheet_mode_default"
 
         private const val KEY_PARKING_ACTIVE = "parking_active"
@@ -350,12 +339,8 @@ class ParkingStore(context: Context) {
         private const val KEY_SHOW_RECENT_CARD = "show_recent_card"
         private const val KEY_QUICK_SETTINGS_EXPANDED = "quick_settings_expanded"
 
-        /** 대시보드 빠른 설정 기본 구성 (기존 인라인 카드와 동일) */
-        val DEFAULT_STARRED = setOf(STAR_PRESSURE, STAR_DISPLAY, STAR_AUTO_CLEAR)
-
-        const val DISPLAY_STATUSBAR = "statusbar"
-        const val DISPLAY_WIDGET = "widget"
-        const val DISPLAY_BOTH = "both"
+        /** 대시보드 빠른 설정 기본 구성 */
+        val DEFAULT_STARRED = setOf(STAR_PRESSURE, STAR_SHEET_MODE)
 
         const val SHEET_FLOOR = "floor"
         const val SHEET_FLOOR_MEMO = "floor_memo"
@@ -367,8 +352,6 @@ class ParkingStore(context: Context) {
 
         /** v3.7: 별표(빠른 설정) 가능한 설정 키 */
         const val STAR_PRESSURE = "pressure"     // 자동감지 토글
-        const val STAR_DISPLAY = "display"       // 홈 위젯 + 상태바 토글
-        const val STAR_AUTO_CLEAR = "autoclear"  // 출차 시 자동 삭제 토글
         const val STAR_THEME = "theme"           // 테마 순환
         const val STAR_SHEET_MODE = "sheetmode"  // 바텀시트 기본 동작 순환
         const val STAR_CONFIRM = "confirm"       // 등록 확인 카드 토글

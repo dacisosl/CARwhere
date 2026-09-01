@@ -38,7 +38,8 @@ import com.eottadwotji.ui.floorpicker.FloorPickerActivity
 object ParkingNotification {
 
     const val SERVICE_NOTIFICATION_ID = 1
-    const val POPUP_NOTIFICATION_ID = 2
+    const val PARKED_NOTIFICATION_ID = 2
+    const val POPUP_NOTIFICATION_ID = 3
 
     private const val CHANNEL_IDLE = "idle_v2"     // IMPORTANCE_MIN: 상태바에 안 보임
     private const val CHANNEL_POPUP = "popup_v2"   // IMPORTANCE_HIGH: 헤드업 팝업
@@ -67,20 +68,16 @@ object ParkingNotification {
         )
     }
 
-    /** 지금 상시 알림이 "주차 캡슐"이어야 하는 상태인가 (서비스의 채널 전환 판단용) */
-    fun wantsParkedNotification(context: Context): Boolean {
+    /**
+     * 현재 상태에 맞게 주차 캡슐을 게시/제거 — 앱 실행·부팅·설정 변경 시 호출.
+     * 서비스가 필요 없다 (일반 알림이라 어디서든 게시 가능).
+     */
+    fun syncParkedNotification(context: Context) {
         val store = com.eottadwotji.data.ParkingStore(context)
-        return store.hasActiveParking() &&
-            store.displayMode != com.eottadwotji.data.ParkingStore.DISPLAY_WIDGET
-    }
-
-    /** 서비스 시작 시 현재 상태에 맞는 상시 알림 — 재시작/재부팅 후에도 표시 일관성 유지 */
-    fun buildServiceNotification(context: Context): Notification {
-        val store = com.eottadwotji.data.ParkingStore(context)
-        return if (wantsParkedNotification(context)) {
-            buildParkedNotification(context, store.currentFloor(), store.parkingStartedAt())
+        if (store.hasActiveParking()) {
+            showParkedNotification(context, store.currentFloor(), store.parkingStartedAt())
         } else {
-            buildIdleNotification(context)
+            dismissParkedNotification(context)
         }
     }
 
@@ -138,18 +135,18 @@ object ParkingNotification {
     }
 
     /**
-     * 주차 확정 표시 요청 — 반드시 서비스를 경유한다 (v3.9).
+     * 주차 캡슐 게시 (v3.9.5 — 서비스와 분리된 일반 상시 알림).
      *
-     * 이유: 상시 알림이 "감지 중"(idle_v2, MIN)으로 먼저 게시된 뒤 같은 ID로
-     * parked_v2 빌더로 notify()하면 Android가 채널 변경을 무시해 MIN에 갇힌다
-     * → 상태바 아이콘이 안 뜨는 간헐 버그의 원인. 서비스가 상태 전환을 감지해
-     * stopForeground(REMOVE) 후 신규 게시로 채널을 올바르게 적용한다.
+     * 왜 서비스(FGS) 알림이 아닌가: FGS 알림은 서비스가 죽으면 시스템이 함께
+     * 지운다 — 삼성 절전이 서비스를 죽이는 순간 캡슐이 사라지던 원인.
+     * 일반 알림은 시스템 소유라 앱 프로세스가 죽어도 상태바에 남는다.
+     * ID(2)는 항상 parked_v2 채널 고정이라 채널 갇힘 문제도 없다.
      */
     fun showParkedNotification(context: Context, floor: String?, startedAtMs: Long = 0L) {
-        // 하차 헤드업이 남아 있으면 정리 — 상시 알림 1개 원칙
-        context.getSystemService(NotificationManager::class.java)
-            .cancel(POPUP_NOTIFICATION_ID)
-        ParkingDetectionService.refresh(context)
+        val nm = context.getSystemService(NotificationManager::class.java)
+        // 하차 헤드업이 남아 있으면 정리
+        nm.cancel(POPUP_NOTIFICATION_ID)
+        nm.notify(PARKED_NOTIFICATION_ID, buildParkedNotification(context, floor, startedAtMs))
     }
 
     internal fun buildParkedNotification(
@@ -199,7 +196,7 @@ object ParkingNotification {
 
     fun dismissParkedNotification(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
-        nm.cancel(SERVICE_NOTIFICATION_ID) // 서비스가 떠 있으면 stopForeground가 마저 제거
+        nm.cancel(PARKED_NOTIFICATION_ID)
         nm.cancel(POPUP_NOTIFICATION_ID)
     }
 

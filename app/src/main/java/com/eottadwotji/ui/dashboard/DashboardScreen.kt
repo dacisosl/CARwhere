@@ -330,6 +330,74 @@ fun DashboardScreen() {
 
         Spacer(Modifier.height(12.dp))
 
+        // ── 위치 카드 (v3.9.5): 등록 위치를 바로 보고, 탭해서 수정·삭제 ──
+        var editingLot by remember {
+            mutableStateOf<com.eottadwotji.data.ParkingLotProfile?>(null)
+        }
+        var creatingLot by remember { mutableStateOf(false) }
+        var lotsVersion by remember { mutableIntStateOf(0) }
+        val lots = remember(lotsVersion, refreshKey) { store.profiles().sortedBy { it.name } }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Concrete.BgDeep, RoundedCornerShape(16.dp))
+                .padding(horizontal = 18.dp, vertical = 14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("위치", style = AppType.SectionLabel, color = Concrete.TextDim)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "+ 추가",
+                    style = AppType.BodySmall,
+                    color = Concrete.NeonLight,
+                    modifier = Modifier
+                        .clickable { creatingLot = true }
+                        .padding(vertical = 2.dp, horizontal = 4.dp)
+                )
+            }
+            if (lots.isEmpty()) {
+                Text(
+                    "등록된 위치가 없어요 — 자주 가는 주차장을 등록해 두세요",
+                    style = AppType.Hint,
+                    color = Concrete.TextDim,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+            lots.forEach { profile ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { editingLot = profile }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(profile.name, style = AppType.BodySmall, color = Concrete.TextBody)
+                        Text(
+                            com.eottadwotji.ui.components.lotFloorsSummary(profile.floors) +
+                                if (profile.latitude != null) " · 위치 등록됨" else "",
+                            style = AppType.Hint,
+                            color = Concrete.TextDim
+                        )
+                    }
+                    Text("✎", style = AppType.BodySmall, color = Concrete.TextDim)
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        if (editingLot != null || creatingLot) {
+            com.eottadwotji.ui.components.LotEditModal(
+                store = store,
+                profile = editingLot,
+                onDismiss = {
+                    editingLot = null
+                    creatingLot = false
+                    lotsVersion++
+                    refreshKey++
+                }
+            )
+        }
+
         // ── 최근 주차 카드 (토글로 접기/펼치기 — v3.9, 표시 여부는 설정 — v3.9.4) ──
         val showRecentCard = remember(refreshKey) { store.showRecentCard }
         if (showRecentCard && recent.isNotEmpty()) {
@@ -485,27 +553,6 @@ private fun InlineSettingsCard(store: ParkingStore, refreshKey: Int, onChanged: 
                     bump()
                 }
             }
-            if (ParkingStore.STAR_DISPLAY in starred) {
-                InlineToggle(
-                    "홈 위젯 + 상태바",
-                    store.displayMode == ParkingStore.DISPLAY_BOTH
-                ) {
-                    store.displayMode =
-                        if (it) ParkingStore.DISPLAY_BOTH else ParkingStore.DISPLAY_STATUSBAR
-                    // 표시 방식 변경 즉시 반영: 상시 알림 + 홈 위젯 (v3.6)
-                    if (store.hasActiveParking()) {
-                        ParkingDetectionService.refresh(context)
-                    }
-                    WidgetUpdater.update(context)
-                    bump()
-                }
-            }
-            if (ParkingStore.STAR_AUTO_CLEAR in starred) {
-                InlineToggle("출차 시 자동 삭제", store.autoClearOnDeparture) {
-                    store.autoClearOnDeparture = it
-                    bump()
-                }
-            }
             if (ParkingStore.STAR_CONFIRM in starred) {
                 InlineToggle("등록 확인 카드", store.confirmBeforeDone) {
                     store.confirmBeforeDone = it
@@ -545,17 +592,20 @@ private fun InlineSettingsCard(store: ParkingStore, refreshKey: Int, onChanged: 
                 )
             }
 
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "모든 설정 →",
-                style = AppType.BodySmall,
-                color = Concrete.TextSub,
+            Spacer(Modifier.height(8.dp))
+            // 모든 설정 — 버튼 스타일 (v3.9.5)
+            Box(
                 modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
                     .clickable {
                         context.startActivity(Intent(context, SettingsActivity::class.java))
-                    }
-                    .padding(vertical = 6.dp)
-            )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("모든 설정  →", style = AppType.BodySmall, color = Concrete.TextBody)
+            }
         }
     }
 }

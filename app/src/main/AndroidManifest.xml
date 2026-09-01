@@ -226,12 +226,13 @@
             android:name=".detection.FloorSelectedReceiver"
             android:exported="false" />
 
-        <!-- 재부팅 후 감지 서비스 재기동 (온보딩 완료 시에만) -->
+        <!-- 재부팅·앱 업데이트 직후 주차 캡슐 복원 (v3.9.5) -->
         <receiver
             android:name=".detection.BootReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

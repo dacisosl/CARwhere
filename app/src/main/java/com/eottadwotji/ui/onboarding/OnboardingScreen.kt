@@ -379,29 +379,28 @@ private fun PermissionRow(
     }
 }
 
-// ── 3단계: 표시 방식 + 첫 기록 유도 ─────────────────────────
+// ── 3단계: 표시 안내 + 첫 기록 유도 (표시 방식 설정 제거 — v3.9.5) ──
 
 @Composable
 private fun DisplayStep(onComplete: () -> Unit) {
     val context = LocalContext.current
     val store = remember { ParkingStore(context) }
-    var mode by remember { mutableStateOf(store.displayMode) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Text("어디에 표시할까요?", style = AppType.Title, color = Concrete.TextMain)
+        Text("이렇게 표시돼요", style = AppType.Title, color = Concrete.TextMain)
         Spacer(Modifier.height(20.dp))
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             DisplayOption(
                 label = "상태바",
                 detail = "화면 위에 항상 \"P·B3\" — 확인은 0초",
-                selected = mode == ParkingStore.DISPLAY_STATUSBAR
-            ) { mode = ParkingStore.DISPLAY_STATUSBAR }
+                selected = true
+            ) { }
             DisplayOption(
                 label = "홈 화면 위젯",
-                detail = "곧 제공 — 우선 상태바로 표시돼요",
-                selected = mode == ParkingStore.DISPLAY_WIDGET
-            ) { mode = ParkingStore.DISPLAY_WIDGET }
+                detail = "홈 화면에 위젯을 추가하면 층수·시각이 함께 표시돼요",
+                selected = false
+            ) { }
         }
 
         Spacer(Modifier.height(28.dp))
@@ -418,7 +417,6 @@ private fun DisplayStep(onComplete: () -> Unit) {
                     .height(48.dp)
                     .background(Concrete.Neon, RoundedCornerShape(8.dp))
                     .clickable {
-                        store.displayMode = mode
                         store.onboardingDone = true
                         context.startActivity(
                             Intent(context, FloorPickerActivity::class.java)
@@ -436,7 +434,6 @@ private fun DisplayStep(onComplete: () -> Unit) {
                     .height(48.dp)
                     .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
                     .clickable {
-                        store.displayMode = mode
                         store.onboardingDone = true
                         onComplete()
                     },
