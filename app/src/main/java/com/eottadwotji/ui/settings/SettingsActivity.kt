@@ -179,7 +179,7 @@ private fun SettingsScreen(onClose: () -> Unit) {
                 "차량 아이콘",
                 if (iconCar != null && iconColor != null)
                     "${AppIconSwitcher.carLabel(iconCar)} · ${AppIconSwitcher.colorLabel(iconColor)}"
-                else "기본 (형광)"
+                else "기본 (흰색 중형차)"
             ) { showIconModal = true }
 
             // ── 6. 기타 ──
@@ -350,7 +350,7 @@ private fun AppIconModal(store: ParkingStore, onDismiss: () -> Unit) {
             }
 
             Text(
-                "기본 아이콘(형광)으로 되돌리기",
+                "기본 아이콘(흰색 중형차)으로 되돌리기",
                 style = AppType.BodySmall,
                 color = Concrete.TextDim,
                 modifier = Modifier
@@ -419,7 +419,7 @@ private fun iconPreviewRes(car: String?, color: String): Int = when (car) {
         "gray" -> com.eottadwotji.R.drawable.ic_fg_sports_gray
         else -> com.eottadwotji.R.drawable.ic_fg_sports_white
     }
-    else -> com.eottadwotji.R.drawable.ic_launcher_fg
+    else -> com.eottadwotji.R.drawable.ic_fg_sedan_white // 기본 = 흰색 중형차 (v3.5)
 }
 
 // ── 위치 모달창 (v3) ────────────────────────────────────────
