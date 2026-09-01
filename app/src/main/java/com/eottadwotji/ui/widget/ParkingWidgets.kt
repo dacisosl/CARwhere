@@ -21,6 +21,7 @@ import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
@@ -87,18 +88,24 @@ class PillWidget : GlanceAppWidget() {
 
 @Composable
 private fun PillContent(parked: Boolean, floor: String?, time: String, lotName: String?) {
-    Row(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .background(BgCard)
-            .cornerRadius(24.dp)
-            .clickable(
-                if (parked) actionStartActivity<MainActivity>()
-                else actionStartActivity<FloorPickerActivity>()
-            )
-            .padding(horizontal = 18.dp),
-        verticalAlignment = Alignment.CenterVertically
+    // 카드 높이를 내용에 맞춰 고정 — 셀이 커도 위아래 여백 없이 슬림하게 (v3.8)
+    Box(
+        modifier = GlanceModifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
+        Row(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .height(62.dp)
+                .background(BgCard)
+                .cornerRadius(22.dp)
+                .clickable(
+                    if (parked) actionStartActivity<MainActivity>()
+                    else actionStartActivity<FloorPickerActivity>()
+                )
+                .padding(horizontal = 18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
         if (parked) {
             // 층수 크게 (네온) — 왼쪽
             Text(
@@ -131,23 +138,24 @@ private fun PillContent(parked: Boolean, floor: String?, time: String, lotName: 
                     maxLines = 1
                 )
             }
-        } else {
-            Column {
-                Text(
-                    "탭해서 기록",
-                    style = TextStyle(
-                        color = ColorProvider(TextMain),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
+            } else {
+                Column {
+                    Text(
+                        "탭해서 기록",
+                        style = TextStyle(
+                            color = ColorProvider(TextMain),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     )
-                )
-                Text(
-                    "주차하면 층수가 떠요",
-                    style = TextStyle(
-                        color = ColorProvider(TextDim),
-                        fontSize = 10.sp
+                    Text(
+                        "주차하면 층수가 떠요",
+                        style = TextStyle(
+                            color = ColorProvider(TextDim),
+                            fontSize = 10.sp
+                        )
                     )
-                )
+                }
             }
         }
     }
@@ -169,17 +177,23 @@ class GaugeWidget : GlanceAppWidget() {
 
 @Composable
 private fun GaugeContent(parked: Boolean, floor: String?, time: String) {
+    // 카드 높이를 내용에 맞춰 고정 — 위아래 여백 최소화 (v3.8)
     Box(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .background(BgCard)
-            .cornerRadius(28.dp)
-            .clickable(
-                if (parked) actionStartActivity<MainActivity>()
-                else actionStartActivity<FloorPickerActivity>()
-            ),
+        modifier = GlanceModifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
+        Box(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .height(78.dp)
+                .background(BgCard)
+                .cornerRadius(22.dp)
+                .clickable(
+                    if (parked) actionStartActivity<MainActivity>()
+                    else actionStartActivity<FloorPickerActivity>()
+                ),
+            contentAlignment = Alignment.Center
+        ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 if (parked) (floor ?: "P") else "—",
@@ -196,6 +210,7 @@ private fun GaugeContent(parked: Boolean, floor: String?, time: String) {
                     fontSize = 11.sp
                 )
             )
+        }
         }
     }
 }

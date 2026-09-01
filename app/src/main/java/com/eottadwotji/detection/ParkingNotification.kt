@@ -203,8 +203,9 @@ object ParkingNotification {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        val pillTop = 22f
-        val pillBottom = size - 22f
+        // v3.8: 캔버스를 거의 꽉 채우는 캡슐 — 상태바에서 시계 숫자 높이만큼 크게 보인다
+        val pillTop = 6f
+        val pillBottom = size - 6f
         val radius = (pillBottom - pillTop) / 2f // 반지름 = 높이 절반 → 완전한 캡슐
         val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
         canvas.drawRoundRect(0f, pillTop, size.toFloat(), pillBottom, radius, radius, pill)
@@ -214,7 +215,7 @@ object ParkingNotification {
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
             // 글자 수에 따라 크기 조정 (B3=2자 크게, B12=3자 작게)
-            textSize = if (text.length <= 2) 46f else 36f
+            textSize = if (text.length <= 2) 58f else 44f
             xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
         }
         val y = size / 2f - (punch.descent() + punch.ascent()) / 2f
