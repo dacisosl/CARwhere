@@ -88,6 +88,16 @@ class ParkingStore(context: Context) {
         get() = prefs.getStringSet(KEY_STARRED_SETTINGS, DEFAULT_STARRED)!!.toSet()
         set(value) = prefs.edit().putStringSet(KEY_STARRED_SETTINGS, value).apply()
 
+    /** v3.9.4: 대시보드에 최근 주차 카드를 띄울지 */
+    var showRecentCard: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_RECENT_CARD, true)
+        set(value) = prefs.edit().putBoolean(KEY_SHOW_RECENT_CARD, value).apply()
+
+    /** v3.9.4: 대시보드 빠른 설정 카드 펼침 상태 — 기본 열림, 닫고 나가면 그대로 유지 */
+    var quickSettingsExpanded: Boolean
+        get() = prefs.getBoolean(KEY_QUICK_SETTINGS_EXPANDED, true)
+        set(value) = prefs.edit().putBoolean(KEY_QUICK_SETTINGS_EXPANDED, value).apply()
+
     /** v2: 기압 자동감지 베타 — 추정 층을 미리 선택만, 확정은 항상 사람 탭 (절대 규칙 5) */
     var pressureAutoDetect: Boolean
         get() = prefs.getBoolean(KEY_PRESSURE_AUTO, false)
@@ -337,6 +347,8 @@ class ParkingStore(context: Context) {
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_CONFIRM_CARD = "confirm_card"
         private const val KEY_STARRED_SETTINGS = "starred_settings"
+        private const val KEY_SHOW_RECENT_CARD = "show_recent_card"
+        private const val KEY_QUICK_SETTINGS_EXPANDED = "quick_settings_expanded"
 
         /** 대시보드 빠른 설정 기본 구성 (기존 인라인 카드와 동일) */
         val DEFAULT_STARRED = setOf(STAR_PRESSURE, STAR_DISPLAY, STAR_AUTO_CLEAR)

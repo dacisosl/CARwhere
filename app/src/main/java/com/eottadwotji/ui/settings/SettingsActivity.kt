@@ -104,6 +104,7 @@ private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null
     val overlayGranted = remember(refresh) { Settings.canDrawOverlays(context) }
     val themeMode = remember(refresh) { store.themeMode }
     val confirmCard = remember(refresh) { store.confirmBeforeDone }
+    val showRecent = remember(refresh) { store.showRecentCard }
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
 
     var activeSheet by remember { mutableStateOf<String?>(null) }
@@ -199,6 +200,22 @@ private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null
                     "표시 방식", displayModeLabel(displayMode),
                     star = { StarToggle(ParkingStore.STAR_DISPLAY in starredSet) { toggleStar(ParkingStore.STAR_DISPLAY) } }
                 ) { activeSheet = "display" }
+                SettingRow("앱 알림 설정 열기", "카테고리·중요도 확인") {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        )
+                    }
+                }
+                Text(
+                    "삼성 폰에서 상태바 캡슐이 사라지면: 폰 설정 > 알림 > 고급 설정 > " +
+                        "상태 표시줄 > \"모든 알림\"으로 바꿔주세요 (기본값은 최근 3개만 표시라 " +
+                        "다른 알림이 오면 캡슐이 밀려나요)",
+                    style = AppType.Hint,
+                    color = Concrete.TextDim,
+                    modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                )
             }
 
             AccordionSection("감지", "감지" in openSections, { toggleSection("감지") }) {
@@ -251,6 +268,10 @@ private fun SettingsScreen(onClose: () -> Unit, initialEditLotId: String? = null
                     star = { StarToggle(ParkingStore.STAR_AUTO_CLEAR in starredSet) { toggleStar(ParkingStore.STAR_AUTO_CLEAR) } }
                 ) {
                     store.autoClearOnDeparture = it
+                    refresh++
+                }
+                SwitchRow("대시보드 최근 주차 카드", showRecent) {
+                    store.showRecentCard = it
                     refresh++
                 }
             }

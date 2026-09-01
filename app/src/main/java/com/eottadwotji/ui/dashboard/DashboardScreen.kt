@@ -330,8 +330,9 @@ fun DashboardScreen() {
 
         Spacer(Modifier.height(12.dp))
 
-        // ── 최근 주차 카드 (토글로 접기/펼치기 — v3.9) ──
-        if (recent.isNotEmpty()) {
+        // ── 최근 주차 카드 (토글로 접기/펼치기 — v3.9, 표시 여부는 설정 — v3.9.4) ──
+        val showRecentCard = remember(refreshKey) { store.showRecentCard }
+        if (showRecentCard && recent.isNotEmpty()) {
             var recentExpanded by remember { mutableStateOf(false) }
             Column(
                 modifier = Modifier
@@ -444,7 +445,8 @@ fun DashboardScreen() {
 private fun InlineSettingsCard(store: ParkingStore, refreshKey: Int, onChanged: () -> Unit) {
     val context = LocalContext.current
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
-    var expanded by remember { mutableStateOf(false) }
+    // v3.9.4: 펼침 상태 유지 — 기본 열림, 닫은 채로 나가면 닫힌 상태 그대로
+    var expanded by remember { mutableStateOf(store.quickSettingsExpanded) }
     var version by remember { mutableIntStateOf(0) }
     val starred = remember(version, refreshKey) { store.starredSettings }
     val bump = { version++; onChanged() }
@@ -459,7 +461,10 @@ private fun InlineSettingsCard(store: ParkingStore, refreshKey: Int, onChanged: 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded },
+                .clickable {
+                    expanded = !expanded
+                    store.quickSettingsExpanded = expanded
+                },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("설정", style = AppType.SectionLabel, color = Concrete.TextDim)
