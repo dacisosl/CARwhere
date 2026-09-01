@@ -163,6 +163,8 @@ class FloorPickerActivity : ComponentActivity() {
         var confirmAfterCamera by remember { mutableStateOf(false) }
         // 휠 우측 메모/사진 버튼: 위치별 모드와 무관하게 다음 단계를 강제 (v3.9)
         var forcedNext by remember { mutableStateOf<String?>(null) }
+        // SETUP의 이전 버튼이 돌아갈 화면 (자동 진입=FLOOR, 위치 선택 경유=LOT_SELECT)
+        var setupFrom by remember { mutableStateOf(Phase.FLOOR) }
 
         // 수동 기록은 좌표 조회가 비동기 → 매칭될 때까지 잠시 폴링 (최대 ~2.4초).
         // 등록된 위치로 판명되면 그 위치의 층 구성만 표시된다 (v3.6 — 해당 층수만).
@@ -297,6 +299,23 @@ class FloorPickerActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // 이전 버튼: 위치 선택/등록 화면에서 한 단계 뒤로 (v3.9.3)
+                        if (phase == Phase.LOT_SELECT || phase == Phase.SETUP) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Concrete.BgPanel, RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        interacted = true
+                                        phase = if (phase == Phase.SETUP) setupFrom
+                                        else Phase.FLOOR
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("‹", style = AppType.Title, color = Concrete.TextSub)
+                            }
+                            Spacer(Modifier.width(10.dp))
+                        }
                         Text(
                             when (phase) {
                                 Phase.SETUP -> "새로운 곳이네요 — 어디예요?"
@@ -367,6 +386,7 @@ class FloorPickerActivity : ComponentActivity() {
                             },
                             onNew = {
                                 interacted = true
+                                setupFrom = Phase.LOT_SELECT
                                 phase = Phase.SETUP
                             },
                             onNone = {

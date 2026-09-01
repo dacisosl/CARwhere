@@ -217,7 +217,9 @@ object ParkingNotification {
         val pillTop = 6f
         val pillBottom = size - 6f
         val radius = (pillBottom - pillTop) / 2f // 반지름 = 높이 절반 → 완전한 캡슐
-        val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        // v3.9.3: 형광그린 캡슐 — 시스템은 "회색조" 아이콘만 단색 틴트하고,
+        // 컬러 아이콘은 (구버전 호환 경로로) 원본 색 그대로 그린다. 가요 앱 방식.
+        val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = NEON }
         canvas.drawRoundRect(0f, pillTop, size.toFloat(), pillBottom, radius, radius, pill)
 
         // 글자를 투명하게 뚫기 — 필 위에 글씨가 도드라져 보이는 효과
