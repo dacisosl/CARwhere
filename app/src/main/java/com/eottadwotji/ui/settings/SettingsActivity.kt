@@ -53,8 +53,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
+import com.eottadwotji.BuildConfig
 import com.eottadwotji.data.ParkingLotProfile
 import com.eottadwotji.data.ParkingStore
+import com.eottadwotji.data.UpdateChecker
 import com.eottadwotji.ui.components.FloorSelector
 import com.eottadwotji.ui.theme.AppType
 import com.eottadwotji.ui.theme.Concrete
@@ -183,6 +185,7 @@ private fun SettingsScreen(onClose: () -> Unit) {
             // ── 6. 기타 ──
             SectionLabel("기타")
             SettingRow("테마", themeModeLabel(themeMode)) { activeSheet = "theme" }
+            UpdateCheckRow()
             SwitchRow("출차 시 자동 삭제", autoClear) {
                 store.autoClearOnDeparture = it
                 refresh++
@@ -628,6 +631,36 @@ private fun LotModal(
                         style = AppType.FloorButton,
                         color = if (canSave) Concrete.NeonDeep else Concrete.TextDim
                     )
+                }
+            }
+        }
+    }
+}
+
+/** 업데이트 확인 (v3.4): 탭 → 릴리스 조회 → 새 버전 있으면 한 번 더 탭해서 설치 */
+@Composable
+private fun UpdateCheckRow() {
+    val context = LocalContext.current
+    var status by remember { mutableStateOf("현재 v${BuildConfig.VERSION_NAME}") }
+    var pending by remember { mutableStateOf<UpdateChecker.Update?>(null) }
+    var busy by remember { mutableStateOf(false) }
+
+    SettingRow("업데이트 확인", status, enabled = !busy) {
+        val update = pending
+        if (update != null) {
+            status = "다운로드 중 — 완료되면 설치 화면이 떠요"
+            busy = true
+            UpdateChecker.downloadAndInstall(context, update)
+        } else {
+            status = "확인 중…"
+            busy = true
+            UpdateChecker.check(BuildConfig.VERSION_CODE) { result ->
+                busy = false
+                if (result != null) {
+                    pending = result
+                    status = "새 버전 ${result.label} — 탭해서 설치"
+                } else {
+                    status = "최신 버전이에요 (v${BuildConfig.VERSION_NAME})"
                 }
             }
         }
