@@ -41,8 +41,8 @@ import kotlinx.coroutines.launch
  * 갱신은 주차 상태가 바뀌는 순간에만 push (updatePeriodMillis=0 — 배터리 규칙 7).
  */
 
-private val Neon = Color(0xFF97C459)
-private val NeonDeep = Color(0xFF173404)
+private val Neon = Color(0xFFAEEA00)
+private val NeonDeep = Color(0xFF1F3D00)
 private val BgCard = Color(0xFF2C2C2A)
 private val TextBody = Color(0xFFD3D1C7)
 private val TextDim = Color(0xFF888780)

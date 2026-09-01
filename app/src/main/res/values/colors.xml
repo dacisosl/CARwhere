@@ -2,8 +2,8 @@
 <resources>
     <color name="ic_launcher_background">#1E1E1C</color>
     <!-- 위젯 (Glance)용 팔레트 -->
-    <color name="neon">#97C459</color>
-    <color name="neon_deep">#173404</color>
+    <color name="neon">#AEEA00</color>
+    <color name="neon_deep">#1F3D00</color>
     <color name="bg_card">#2C2C2A</color>
     <color name="bg_panel">#444441</color>
     <color name="text_body">#D3D1C7</color>

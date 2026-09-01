@@ -1,35 +1,96 @@
 package com.eottadwotji.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.eottadwotji.data.ParkingStore
 
 /**
- * 콘크리트 + 형광 사인 팔레트 (DESIGN.md 2절 컬러값 그대로).
- * 실제 지하주차장에서 형광 사인만 눈에 띄는 그 느낌.
+ * 콘크리트 + 네온 사인 팔레트 (DESIGN.md 기반, v3.3에서 라이트 모드 추가).
  *
- * 규칙: 한 화면에 형광(Neon) 요소는 1~2개까지.
- * 형광이 흔해지면 사인이 아니라 벽지가 된다.
+ * 모든 화면이 Concrete.X로 색을 읽는다 — palette가 전역 상태(mutableStateOf)라
+ * 설정에서 테마를 바꾸면 열려 있는 모든 화면이 즉시 다시 그려진다.
+ * 규칙: 한 화면에 네온 요소는 1~2개까지 (절대 규칙 3).
  */
-object Concrete {
-    // 콘크리트 (배경/구조)
-    val BgScreen = Color(0xFF1E1E1C)   // v2: 화면 최하단 배경
-    val BgDeep = Color(0xFF2C2C2A)     // 카드 배경 (v1의 화면 배경)
-    val BgPanel = Color(0xFF444441)    // 버튼, 비선택 층, 패널
-    val Border = Color(0xFF5F5E5A)     // 기본 테두리, 지상선
-    val TextDim = Color(0xFF888780)    // 힌트, 비활성
-    val TextSub = Color(0xFFB4B2A9)    // 보조 텍스트
-    val TextBody = Color(0xFFD3D1C7)   // 일반 버튼 텍스트
-    val TextMain = Color(0xFFF1EFE8)   // 제목, 본문
+data class Palette(
+    val bgScreen: Color,   // 화면 최하단 배경
+    val bgDeep: Color,     // 카드, 바텀시트
+    val bgPanel: Color,    // 버튼, 비선택 층, 행
+    val border: Color,     // 테두리, 지상선
+    val textDim: Color,    // 힌트, 비활성
+    val textSub: Color,    // 보조 텍스트
+    val textBody: Color,   // 일반 버튼 텍스트
+    val textMain: Color,   // 제목, 본문
+    val neon: Color,       // 네온 라임 — 강조 배경/링/큰 숫자
+    val neonLight: Color,  // 강조 텍스트 (배경 위)
+    val neonDeep: Color    // 네온 배경 위 텍스트
+)
 
-    // 형광 사인 (강조 — 선택/활성/내 차 위치에만)
-    val Neon = Color(0xFF97C459)       // 테두리, 큰 층수 숫자, 주 버튼 배경
-    val NeonLight = Color(0xFFC0DD97)  // 형광 위 텍스트, 선택 층 라벨
-    val NeonDeep = Color(0xFF173404)   // 형광 배경 위 텍스트
+/** 다크(기본): 지하주차장 콘크리트 + 밝은 네온 라임 */
+val DarkPalette = Palette(
+    bgScreen = Color(0xFF1E1E1C),
+    bgDeep = Color(0xFF2C2C2A),
+    bgPanel = Color(0xFF444441),
+    border = Color(0xFF5F5E5A),
+    textDim = Color(0xFF888780),
+    textSub = Color(0xFFB4B2A9),
+    textBody = Color(0xFFD3D1C7),
+    textMain = Color(0xFFF1EFE8),
+    neon = Color(0xFFAEEA00),      // v3.3: 더 밝은 네온 라임 (구 #97C459)
+    neonLight = Color(0xFFD3FF57),
+    neonDeep = Color(0xFF1F3D00)
+)
+
+/** 라이트: 밝은 콘크리트 + 가독성 위해 살짝 깊은 라임 */
+val LightPalette = Palette(
+    bgScreen = Color(0xFFF1EFE9),
+    bgDeep = Color(0xFFFFFFFF),
+    bgPanel = Color(0xFFE8E5DB),
+    border = Color(0xFFC6C3B8),
+    textDim = Color(0xFF98968B),
+    textSub = Color(0xFF75746A),
+    textBody = Color(0xFF45443F),
+    textMain = Color(0xFF21211E),
+    neon = Color(0xFF9CCF00),
+    neonLight = Color(0xFF55791A),  // 라이트 배경 위 강조 텍스트는 어둡게
+    neonDeep = Color(0xFF1F3D00)
+)
+
+object Concrete {
+    /** 현재 팔레트 — EottadwotjiTheme/설정에서 교체 (전역 리컴포지션 트리거) */
+    var palette by mutableStateOf(DarkPalette)
+
+    val BgScreen get() = palette.bgScreen
+    val BgDeep get() = palette.bgDeep
+    val BgPanel get() = palette.bgPanel
+    val Border get() = palette.border
+    val TextDim get() = palette.textDim
+    val TextSub get() = palette.textSub
+    val TextBody get() = palette.textBody
+    val TextMain get() = palette.textMain
+    val Neon get() = palette.neon
+    val NeonLight get() = palette.neonLight
+    val NeonDeep get() = palette.neonDeep
+
+    /** store.themeMode에 따라 팔레트 적용 */
+    fun apply(themeMode: String, systemDark: Boolean) {
+        palette = when (themeMode) {
+            ParkingStore.THEME_LIGHT -> LightPalette
+            ParkingStore.THEME_DARK -> DarkPalette
+            else -> if (systemDark) DarkPalette else LightPalette
+        }
+    }
 }
 
 /**
@@ -37,42 +98,54 @@ object Concrete {
  * 층수 숫자가 항상 가장 큰 텍스트. 굵기는 regular/medium 2단계만.
  */
 object AppType {
-    val FloorBig = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.Medium)  // 대시보드 층수
-    val Title = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium)     // 화면 제목
-    // v2: 자동차 계기판 어휘 — 레터스페이싱 브랜드/라벨
+    val FloorBig = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.Medium)
+    val Title = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium)
     val Brand = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium, letterSpacing = 2.sp)
     val GaugeFloor = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Medium)
     val LabelCaps = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.5.sp)
-    val FloorButton = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium) // 팝업 층 버튼
+    val FloorButton = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium)
     val Body = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Normal)
     val BodySmall = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal)
     val Hint = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal)
-    val SectionLabel = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium) // 설정 섹션 제목
+    val SectionLabel = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium)
 }
-
-private val ConcreteColorScheme = darkColorScheme(
-    primary = Concrete.Neon,
-    onPrimary = Concrete.NeonDeep,
-    secondary = Concrete.TextSub,
-    onSecondary = Concrete.BgDeep,
-    background = Concrete.BgScreen,
-    onBackground = Concrete.TextMain,
-    surface = Concrete.BgDeep,
-    onSurface = Concrete.TextMain,
-    surfaceVariant = Concrete.BgPanel,
-    onSurfaceVariant = Concrete.TextBody,
-    surfaceContainer = Concrete.BgPanel,
-    surfaceContainerLow = Concrete.BgPanel,
-    surfaceContainerHigh = Concrete.BgPanel,
-    surfaceContainerHighest = Concrete.BgPanel,
-    outline = Concrete.Border,
-    error = Color(0xFFCF6679)
-)
 
 @Composable
 fun EottadwotjiTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = ConcreteColorScheme,
-        content = content
-    )
+    val context = LocalContext.current
+    val store = remember { ParkingStore(context) }
+    val systemDark = isSystemInDarkTheme()
+
+    // 저장된 테마 모드 반영 (설정 토글 시에는 Concrete.apply가 직접 호출됨)
+    remember(systemDark) {
+        Concrete.apply(store.themeMode, systemDark)
+        true
+    }
+
+    val p = Concrete.palette
+    val scheme = if (p == LightPalette) {
+        lightColorScheme(
+            primary = p.neon, onPrimary = p.neonDeep,
+            secondary = p.textSub, onSecondary = p.bgDeep,
+            background = p.bgScreen, onBackground = p.textMain,
+            surface = p.bgDeep, onSurface = p.textMain,
+            surfaceVariant = p.bgPanel, onSurfaceVariant = p.textBody,
+            surfaceContainer = p.bgPanel, surfaceContainerLow = p.bgPanel,
+            surfaceContainerHigh = p.bgPanel, surfaceContainerHighest = p.bgPanel,
+            outline = p.border
+        )
+    } else {
+        darkColorScheme(
+            primary = p.neon, onPrimary = p.neonDeep,
+            secondary = p.textSub, onSecondary = p.bgDeep,
+            background = p.bgScreen, onBackground = p.textMain,
+            surface = p.bgDeep, onSurface = p.textMain,
+            surfaceVariant = p.bgPanel, onSurfaceVariant = p.textBody,
+            surfaceContainer = p.bgPanel, surfaceContainerLow = p.bgPanel,
+            surfaceContainerHigh = p.bgPanel, surfaceContainerHighest = p.bgPanel,
+            outline = p.border
+        )
+    }
+
+    MaterialTheme(colorScheme = scheme, content = content)
 }

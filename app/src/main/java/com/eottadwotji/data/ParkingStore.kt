@@ -73,6 +73,11 @@ class ParkingStore(context: Context) {
         get() = prefs.getString(KEY_APP_ICON_COLOR, null)
         set(value) = prefs.edit().putString(KEY_APP_ICON_COLOR, value).apply()
 
+    /** v3.3: 테마 모드 — THEME_SYSTEM / THEME_DARK / THEME_LIGHT */
+    var themeMode: String
+        get() = prefs.getString(KEY_THEME_MODE, THEME_SYSTEM)!!
+        set(value) = prefs.edit().putString(KEY_THEME_MODE, value).apply()
+
     /** v2: 기압 자동감지 베타 — 추정 층을 미리 선택만, 확정은 항상 사람 탭 (절대 규칙 5) */
     var pressureAutoDetect: Boolean
         get() = prefs.getBoolean(KEY_PRESSURE_AUTO, false)
@@ -273,6 +278,7 @@ class ParkingStore(context: Context) {
         private const val KEY_ESTIMATED_FLOOR = "estimated_floor"
         private const val KEY_APP_ICON_CAR = "app_icon_car"
         private const val KEY_APP_ICON_COLOR = "app_icon_color"
+        private const val KEY_THEME_MODE = "theme_mode"
 
         const val DISPLAY_STATUSBAR = "statusbar"
         const val DISPLAY_WIDGET = "widget"
@@ -281,5 +287,9 @@ class ParkingStore(context: Context) {
         const val SHEET_FLOOR = "floor"
         const val SHEET_FLOOR_MEMO = "floor_memo"
         const val SHEET_FLOOR_PHOTO = "floor_photo"
+
+        const val THEME_SYSTEM = "system"
+        const val THEME_DARK = "dark"
+        const val THEME_LIGHT = "light"
     }
 }

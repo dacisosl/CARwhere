@@ -126,7 +126,7 @@ object ParkingNotification {
                 NotificationCompat.BigTextStyle()
                     .bigText("$detailLine\n탭하면 상세 보기 · 출발하면 자동으로 사라져요")
             )
-            .setColor(0xFF97C459.toInt()) // 형광 액센트 (아이콘/앱명 틴트)
+            .setColor(0xFFAEEA00.toInt()) // 네온 액센트 (아이콘/앱명 틴트)
             .setContentIntent(mainActivityIntent(context))
             .setOngoing(true)          // 스와이프로 지워지지 않음
             .setShowWhen(startedAtMs > 0L)

@@ -13,6 +13,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -88,6 +90,8 @@ private fun SettingsScreen(onClose: () -> Unit) {
     val autoClear = remember(refresh) { store.autoClearOnDeparture }
     val myCarName = remember(refresh) { store.myCarName }
     val overlayGranted = remember(refresh) { Settings.canDrawOverlays(context) }
+    val themeMode = remember(refresh) { store.themeMode }
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
 
     var activeSheet by remember { mutableStateOf<String?>(null) }
     // 위치 모달: null=닫힘, 빈 id=새 위치
@@ -178,6 +182,7 @@ private fun SettingsScreen(onClose: () -> Unit) {
 
             // ── 6. 기타 ──
             SectionLabel("기타")
+            SettingRow("테마", themeModeLabel(themeMode)) { activeSheet = "theme" }
             SwitchRow("출차 시 자동 삭제", autoClear) {
                 store.autoClearOnDeparture = it
                 refresh++
@@ -222,6 +227,20 @@ private fun SettingsScreen(onClose: () -> Unit) {
             ),
             current = displayMode,
             onSelect = { store.displayMode = it },
+            onDismiss = { activeSheet = null; refresh++ }
+        )
+        "theme" -> OptionSheet(
+            title = "테마",
+            options = listOf(
+                ParkingStore.THEME_SYSTEM to "시스템 따라가기",
+                ParkingStore.THEME_DARK to "다크 (지하주차장)",
+                ParkingStore.THEME_LIGHT to "라이트"
+            ),
+            current = themeMode,
+            onSelect = {
+                store.themeMode = it
+                com.eottadwotji.ui.theme.Concrete.apply(it, systemDark) // 전 화면 즉시 반영
+            },
             onDismiss = { activeSheet = null; refresh++ }
         )
         "car" -> CarPickerSheet(store, onDismiss = { activeSheet = null; refresh++ })
@@ -286,47 +305,43 @@ private fun AppIconModal(store: ParkingStore, onDismiss: () -> Unit) {
                 )
             }
 
-            Text("차종", style = AppType.SectionLabel, color = Concrete.TextDim)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // 미리보기 그리드 — 항목을 직접 보고 고른다 (행=차종, 열=색상)
+            Text("항목을 골라주세요", style = AppType.SectionLabel, color = Concrete.TextDim)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AppIconSwitcher.CARS.forEach { c ->
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
-                            .clickable { car = c }
-                            .padding(horizontal = 14.dp, vertical = 11.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             AppIconSwitcher.carLabel(c),
-                            style = AppType.BodySmall,
-                            color = if (car == c) Concrete.NeonLight else Concrete.TextBody
+                            style = AppType.Hint,
+                            color = Concrete.TextDim,
+                            modifier = Modifier.width(52.dp)
                         )
-                        Spacer(Modifier.weight(1f))
-                        if (car == c) Text("✓", style = AppType.BodySmall, color = Concrete.Neon)
-                    }
-                }
-            }
-
-            Text("색상", style = AppType.SectionLabel, color = Concrete.TextDim)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AppIconSwitcher.COLORS.forEach { col ->
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp)
-                            .background(
-                                if (color == col) Concrete.Neon else Concrete.BgPanel,
-                                RoundedCornerShape(8.dp)
+                        AppIconSwitcher.COLORS.forEach { col ->
+                            val selected = car == c && color == col
+                            androidx.compose.foundation.Image(
+                                painter = androidx.compose.ui.res.painterResource(
+                                    iconPreviewRes(c, col)
+                                ),
+                                contentDescription =
+                                    "${AppIconSwitcher.carLabel(c)} ${AppIconSwitcher.colorLabel(col)}",
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(64.dp)
+                                    .background(Concrete.BgScreen, RoundedCornerShape(12.dp))
+                                    .then(
+                                        if (selected) Modifier.border(
+                                            2.dp, Concrete.Neon, RoundedCornerShape(12.dp)
+                                        ) else Modifier
+                                    )
+                                    .clickable {
+                                        car = c
+                                        color = col
+                                    }
                             )
-                            .clickable { color = col },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            AppIconSwitcher.colorLabel(col),
-                            style = AppType.BodySmall,
-                            color = if (color == col) Concrete.NeonDeep else Concrete.TextBody
-                        )
+                        }
                     }
                 }
             }
@@ -853,4 +868,10 @@ private fun sheetModeLabel(mode: String): String = when (mode) {
     ParkingStore.SHEET_FLOOR -> "층수만"
     ParkingStore.SHEET_FLOOR_PHOTO -> "층 + 사진"
     else -> "층 + 메모"
+}
+
+private fun themeModeLabel(mode: String): String = when (mode) {
+    ParkingStore.THEME_DARK -> "다크"
+    ParkingStore.THEME_LIGHT -> "라이트"
+    else -> "시스템"
 }
