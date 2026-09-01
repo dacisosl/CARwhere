@@ -29,10 +29,17 @@ class MainActivity : ComponentActivity() {
         setContent {
             EottadwotjiTheme {
                 var onboardingDone by remember { mutableStateOf(store.onboardingDone) }
-                if (onboardingDone) {
-                    DashboardScreen()
-                } else {
-                    OnboardingScreen(onComplete = {
+                // 시네마틱 스플래시: 로딩시간과 무관하게 항상 온전히 재생 (프로세스당 1회)
+                var showSplash by remember {
+                    mutableStateOf(!com.eottadwotji.ui.splash.SplashGate.shown)
+                }
+                when {
+                    showSplash -> com.eottadwotji.ui.splash.CinematicSplash(onDone = {
+                        com.eottadwotji.ui.splash.SplashGate.shown = true
+                        showSplash = false
+                    })
+                    onboardingDone -> DashboardScreen()
+                    else -> OnboardingScreen(onComplete = {
                         onboardingDone = true
                         startDetectionIfReady()
                     })

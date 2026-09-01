@@ -47,30 +47,34 @@ fun FloorSelector(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // 지상 열: 위로 갈수록 높은 층 → "+"가 맨 위
+        // 지상 열: 위로 갈수록 높은 층 → "+"가 맨 위. 지상은 앰버(주광) 계열 (v3.9)
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             ColumnHeader("지상")
-            FloorChip("+", selected = false, onClick = onExtendUp)
+            FloorChip("+", selected = false, ground = true, onClick = onExtendUp)
             ground.forEach { floor ->
-                FloorChip(floor, floor in selected) { onToggle(floor) }
+                FloorChip(floor, floor in selected, ground = true) { onToggle(floor) }
             }
         }
-        // 지하 열: 아래로 갈수록 깊은 층 → "+"가 맨 아래
+        // 지하 열: 아래로 갈수록 깊은 층 → "+"가 맨 아래. 지하는 네온 그린 계열
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             ColumnHeader("지하")
             basement.forEach { floor ->
-                FloorChip(floor, floor in selected) { onToggle(floor) }
+                FloorChip(floor, floor in selected, ground = false) { onToggle(floor) }
             }
-            FloorChip("+", selected = false, onClick = onExtendDown)
+            FloorChip("+", selected = false, ground = false, onClick = onExtendDown)
         }
     }
 }
+
+/** 지상 층 선택 색 — 주광 앰버 (지하 네온과 위계 구분) */
+private val GroundAmber = androidx.compose.ui.graphics.Color(0xFFFFC24B)
+private val GroundAmberDeep = androidx.compose.ui.graphics.Color(0xFF3D2C00)
 
 @Composable
 private fun ColumnHeader(label: String) {
@@ -83,13 +87,17 @@ private fun ColumnHeader(label: String) {
 }
 
 @Composable
-private fun FloorChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun FloorChip(label: String, selected: Boolean, ground: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(40.dp)
             .background(
-                if (selected) Concrete.Neon else Concrete.BgPanel,
+                when {
+                    selected && ground -> GroundAmber
+                    selected -> Concrete.Neon
+                    else -> Concrete.BgPanel
+                },
                 RoundedCornerShape(8.dp)
             )
             .then(
@@ -104,6 +112,7 @@ private fun FloorChip(label: String, selected: Boolean, onClick: () -> Unit) {
             label,
             style = AppType.BodySmall,
             color = when {
+                selected && ground -> GroundAmberDeep
                 selected -> Concrete.NeonDeep
                 label == "+" -> Concrete.TextDim
                 else -> Concrete.TextBody

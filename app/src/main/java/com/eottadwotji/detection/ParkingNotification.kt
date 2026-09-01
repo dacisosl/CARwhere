@@ -168,8 +168,16 @@ object ParkingNotification {
             store.currentLot()?.name ?: store.approximateAddress()?.let { "$it 근처" }
         ).joinToString(" · ").ifEmpty { "위치만 저장됨" }
 
+        // 알림창은 풀컬러가 허용되는 영역 — 실사 차 에셋을 큰 아이콘으로 (v3.9.2)
+        val largeIcon = runCatching {
+            android.graphics.BitmapFactory.decodeResource(
+                context.resources, com.eottadwotji.R.drawable.ic_fg_sedan_white
+            )
+        }.getOrNull()
+
         return NotificationCompat.Builder(context, CHANNEL_PARKED)
             .setSmallIcon(icon)
+            .apply { if (largeIcon != null) setLargeIcon(largeIcon) }
             .setContentTitle(if (floor != null) "$floor 에 주차됨" else "주차 위치 저장됨")
             .setContentText(detailLine)
             .setStyle(

@@ -535,6 +535,15 @@ private fun LotModal(
     var memos by remember { mutableStateOf(profile?.memos ?: emptyMap()) }
 
     Dialog(onDismissRequest = onDismiss) {
+        // 키보드가 저장 버튼을 가리지 않게 — 다이얼로그 창을 키보드만큼 리사이즈 (v3.9.2)
+        val dialogView = androidx.compose.ui.platform.LocalView.current
+        androidx.compose.runtime.SideEffect {
+            (dialogView.parent as? androidx.compose.ui.window.DialogWindowProvider)
+                ?.window
+                ?.setSoftInputMode(
+                    android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                )
+        }
         Column(
             modifier = Modifier
                 .background(Concrete.BgDeep, RoundedCornerShape(16.dp))
