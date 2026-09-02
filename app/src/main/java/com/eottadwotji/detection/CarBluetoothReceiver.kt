@@ -15,9 +15,13 @@ import com.eottadwotji.data.ParkingStore
  *    5초 재연결 필터를 거침 (신호 순간 끊김 대응)
  *
  * 등록은 이중화 (README 권장):
- * - AndroidManifest.xml 정적 등록 (백업 경로)
- * - ParkingDetectionService 내부 동적 등록 (API 33+ 제한 대응)
+ * - AndroidManifest.xml 정적 등록 (대기 중 유일한 깨우기 경로 — 서비스는 v3.6부터 대기 중 미기동)
+ * - ParkingDetectionService 내부 동적 등록 (서비스 생존 중 백업)
  * 같은 이벤트가 두 번 도달할 수 있지만 서비스 쪽 처리가 멱등이라 안전하다.
+ *
+ * 주의: ACL 브로드캐스트 발신자는 시스템이 아니라 블루투스 스택 프로세스(uid bluetooth)다.
+ * 매니페스트 등록은 exported=true, 동적 등록은 RECEIVER_EXPORTED가 아니면 전달되지 않는다.
+ * (두 액션 모두 protected-broadcast — 제3자 앱이 위조 불가)
  */
 class CarBluetoothReceiver : BroadcastReceiver() {
 

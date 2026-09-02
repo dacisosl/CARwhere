@@ -212,10 +212,12 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
-        <!-- 매니페스트 등록은 백업 경로 — API 33+ 제한 대응으로 서비스 안에서 동적 등록 이중화 (README) -->
+        <!-- ACL 브로드캐스트는 블루투스 스택 프로세스(uid bluetooth)가 보내므로
+             exported=true 필수 — false면 시스템 외 uid 발신이라 전달 자체가 안 된다.
+             두 액션 모두 protected-broadcast라 제3자 앱이 위조할 수 없어 안전. -->
         <receiver
             android:name=".detection.CarBluetoothReceiver"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
                 <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
