@@ -183,7 +183,7 @@ private fun LotRow(lot: ParkingLotProfile, active: Boolean, onClick: () -> Unit)
             Text(
                 listOfNotNull(
                     lotFloorsSummary(lot.floors),
-                    if (lot.latitude != null) "위치 등록됨" else "위치 미등록"
+                    if (lot.latitude != null) "위치 등록됨" else "위치 미등록",
                     lot.lastFloor?.let { "지난번 $it" }
                 ).joinToString(" · "),
                 style = AppType.Hint,
