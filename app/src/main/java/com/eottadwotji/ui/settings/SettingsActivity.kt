@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -54,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
@@ -64,6 +66,7 @@ import com.eottadwotji.data.UpdateChecker
 import com.eottadwotji.ui.components.FloorSelector
 import com.eottadwotji.ui.theme.AppType
 import com.eottadwotji.ui.theme.Concrete
+import com.eottadwotji.ui.theme.appCard
 import com.eottadwotji.ui.theme.EottadwotjiTheme
 import com.google.android.gms.location.LocationServices
 import java.util.UUID
@@ -136,14 +139,6 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, embedded: Boolean = false) {
             openSections =
                 if (name in openSections) openSections - name else openSections + name
         }
-        val starredSet = remember(refresh) { store.starredSettings }
-        val toggleStar: (String) -> Unit = { key ->
-            store.starredSettings =
-                if (key in store.starredSettings) store.starredSettings - key
-                else store.starredSettings + key
-            refresh++
-        }
-
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -151,17 +146,13 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, embedded: Boolean = false) {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             AccordionSection("바텀시트", "바텀시트" in openSections, { toggleSection("바텀시트") }) {
-                SettingRow(
-                    "기본 동작", sheetModeLabel(sheetMode),
-                    star = { StarToggle(ParkingStore.STAR_SHEET_MODE in starredSet) { toggleStar(ParkingStore.STAR_SHEET_MODE) } }
-                ) { activeSheet = "sheet_mode" }
+                SettingRow("기본 동작", sheetModeLabel(sheetMode)) { activeSheet = "sheet_mode" }
                 SettingRow(
                     "등록 확인",
-                    if (confirmCard) "확인 카드 띄우기" else "바로 등록",
-                    star = { StarToggle(ParkingStore.STAR_CONFIRM in starredSet) { toggleStar(ParkingStore.STAR_CONFIRM) } }
+                    if (confirmCard) "확인 카드" else "바로 등록"
                 ) { activeSheet = "confirm_card" }
                 Text(
-                    "위치마다 다르게 하려면 대시보드의 위치 카드에서 바꿔주세요",
+                    "위치마다 다르게 하려면 위치관리 탭에서 그 위치를 열어 바꿔주세요",
                     style = AppType.Hint,
                     color = Concrete.TextDim,
                     modifier = Modifier.padding(start = 4.dp, top = 2.dp)
@@ -188,10 +179,7 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, embedded: Boolean = false) {
             }
 
             AccordionSection("감지", "감지" in openSections, { toggleSection("감지") }) {
-                SwitchRow(
-                    "자동감지", pressureOn,
-                    star = { StarToggle(ParkingStore.STAR_PRESSURE in starredSet) { toggleStar(ParkingStore.STAR_PRESSURE) } }
-                ) {
+                SwitchRow("자동감지", pressureOn) {
                     store.pressureAutoDetect = it
                     refresh++
                 }
@@ -227,10 +215,7 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, embedded: Boolean = false) {
             }
 
             AccordionSection("기타", "기타" in openSections, { toggleSection("기타") }) {
-                SettingRow(
-                    "테마", themeModeLabel(themeMode),
-                    star = { StarToggle(ParkingStore.STAR_THEME in starredSet) { toggleStar(ParkingStore.STAR_THEME) } }
-                ) { activeSheet = "theme" }
+                SettingRow("테마", themeModeLabel(themeMode)) { activeSheet = "theme" }
                 UpdateCheckRow()
                 SettingRow("주차 기록", "전체 보기") {
                     context.startActivity(
@@ -276,9 +261,9 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, embedded: Boolean = false) {
         "theme" -> OptionSheet(
             title = "테마",
             options = listOf(
-                ParkingStore.THEME_SYSTEM to "시스템 따라가기",
-                ParkingStore.THEME_DARK to "다크 (지하주차장)",
-                ParkingStore.THEME_LIGHT to "라이트"
+                ParkingStore.THEME_LIGHT to "라이트 (기본)",
+                ParkingStore.THEME_DARK to "다크",
+                ParkingStore.THEME_SYSTEM to "시스템 따라가기"
             ),
             current = themeMode,
             onSelect = {
@@ -503,7 +488,7 @@ private fun AccordionSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Concrete.BgDeep, RoundedCornerShape(12.dp))
+            .appCard(12.dp)
             .animateContentSize(animationSpec = tween(180))
             .padding(horizontal = 12.dp)
     ) {
@@ -514,8 +499,12 @@ private fun AccordionSection(
                 .padding(horizontal = 4.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, style = AppType.Body, color = Concrete.TextMain)
-            Spacer(Modifier.weight(1f))
+            Text(
+                title,
+                style = AppType.Body,
+                color = Concrete.TextMain,
+                modifier = Modifier.weight(1f)
+            )
             Text(
                 if (expanded) "▴" else "▾",
                 style = AppType.BodySmall,
@@ -533,26 +522,6 @@ private fun AccordionSection(
     }
 }
 
-/**
- * ★ 토글: 이 설정을 대시보드 빠른 설정(미리보기)에 올린다.
- * starred를 파라미터로 받아야 리컴포지션이 스킵되지 않는다 (strong skipping — v3.9).
- */
-@Composable
-private fun StarToggle(starred: Boolean, onToggle: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clickable(onClick = onToggle),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            if (starred) "★" else "☆",
-            style = AppType.Title,
-            color = if (starred) Concrete.Neon else Concrete.TextDim
-        )
-    }
-}
-
 @Composable
 private fun SectionLabel(label: String) {
     Text(
@@ -563,12 +532,16 @@ private fun SectionLabel(label: String) {
     )
 }
 
+/**
+ * 설정 한 줄 — 왼쪽 라벨, 오른쪽 값.
+ * v5.2: 라벨이 길면 값과 겹쳐 보이던 문제 — 라벨에 weight(1f), 값은 폭 상한 + 우측 정렬
+ * 2줄까지 허용해 서로 밀어내지 않게 했다.
+ */
 @Composable
 private fun SettingRow(
     label: String,
     value: String,
     enabled: Boolean = true,
-    star: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -576,17 +549,24 @@ private fun SettingRow(
             .fillMaxWidth()
             .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             label,
             style = AppType.Body,
-            color = if (enabled) Concrete.TextBody else Concrete.TextDim
+            color = if (enabled) Concrete.TextBody else Concrete.TextDim,
+            modifier = Modifier.weight(1f)
         )
-        Spacer(Modifier.weight(1f))
-        Text(value, style = AppType.BodySmall, color = Concrete.TextSub)
-        star?.invoke()
+        Spacer(Modifier.width(12.dp))
+        Text(
+            value,
+            style = AppType.BodySmall,
+            color = Concrete.TextSub,
+            textAlign = TextAlign.End,
+            maxLines = 2,
+            modifier = Modifier.widthIn(max = 150.dp)
+        )
     }
 }
 
@@ -594,18 +574,22 @@ private fun SettingRow(
 private fun SwitchRow(
     label: String,
     checked: Boolean,
-    star: (@Composable () -> Unit)? = null,
     onChange: (Boolean) -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(start = 16.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, style = AppType.Body, color = Concrete.TextBody)
-        Spacer(Modifier.weight(1f))
+        Text(
+            label,
+            style = AppType.Body,
+            color = Concrete.TextBody,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(Modifier.width(8.dp))
         Switch(
             checked = checked,
             onCheckedChange = onChange,
@@ -617,7 +601,6 @@ private fun SwitchRow(
                 uncheckedBorderColor = Concrete.Border
             )
         )
-        star?.invoke()
     }
 }
 

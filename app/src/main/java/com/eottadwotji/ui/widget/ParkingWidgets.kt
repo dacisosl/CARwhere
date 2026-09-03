@@ -6,6 +6,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
+import android.view.View
+import android.widget.RemoteViews
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
@@ -13,7 +15,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.LocalContext
 import androidx.glance.LocalSize
+import androidx.glance.appwidget.AndroidRemoteViews
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
@@ -26,16 +30,14 @@ import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
-import androidx.glance.layout.Row
-import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.padding
-import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.eottadwotji.MainActivity
+import com.eottadwotji.R
 import com.eottadwotji.data.ParkingStore
 import com.eottadwotji.ui.floorpicker.FloorPickerActivity
 import kotlinx.coroutines.CoroutineScope
@@ -44,23 +46,21 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 
 /**
- * 홈 위젯 2종 — 층수 + 경과 시간(시간:분) (v5.1).
+ * 홈 위젯 2종 — 층수 + 경과 시간(시간:분) (v5.2).
  *
- * - 2x1 필: 한 줄에 [B3] [3:14] (+ 넓으면 "주차 16:54 · 집"). 세로로 쌓지 않아
- *   셀 높이가 낮은 런처에서도 위아래가 잘리지 않는다 (v5.1 — 잘림 수정).
- *   가로로 넓힐수록 정보가 늘어난다 (SizeMode.Responsive).
- * - 1x1 게이지: 층수 위, 경과 시간 아래. 카드는 셀을 꽉 채운다 (고정 높이 없음).
+ * - 2x1: 한 줄 [B3] [3:14] (+ 넓으면 "주차 16:54 · 집"). 세로로 쌓지 않아 낮은 셀에서도
+ *   위아래가 잘리지 않는다.
+ * - 1x1: 층수 위, 경과 시간 아래.
  *
- * 경과 시간 표기: H:MM. 초를 빼면 Chronometer(런처가 초 단위로 그려주는 뷰)를 쓸 이유가
- * 없고, 대신 분이 바뀔 때 위젯을 다시 그려야 한다 → 주차 중에만 1분 간격의 부정확
- * 반복 알람(setInexactRepeating)으로 갱신한다. 화면이 꺼져 있으면 시스템이 알람을
- * 묶어서 미루고, 켜지면 곧 따라잡는다. 출차하면 알람을 끈다 (배터리 규칙 7의 예외:
- * 위젯이 "시간"을 보여주는 한 최소한의 틱은 필요하다).
+ * v5.2 — 글씨를 더 두껍게: 본문을 Glance Text에서 RemoteViews(TextView)로 바꿨다.
+ * Glance는 Bold가 최대 굵기지만 TextView는 sans-serif-black을 쓸 수 있어 가독성이 확실히
+ * 올라간다. 배경·모서리·클릭은 Glance가 맡고, 글자만 네이티브 레이아웃이 그린다.
+ *
+ * 경과 시간 표기: H:MM. 분이 바뀔 때 다시 그려야 하므로 주차 중에만 1분 간격의 부정확
+ * 반복 알람(setInexactRepeating)으로 갱신하고, 출차하면 알람을 끈다.
  */
 
-// v5 팔레트 — 화이트 카드 위 잉크 글자, 층수는 딥 파인 그린, 경과 시간 숫자는 머스크 버건디
-private val Neon = Color(0xFF2F6B4F)      // 시그니처 (층수)
-private val Accent = Color(0xFF9E4A5C)    // 포인트 (숫자)
+// v5 팔레트 — 화이트 카드 위 잉크 글자, 층수는 딥 파인 그린, 경과 시간은 머스크 버건디
 private val BgCard = Color(0xFFFFFFFF)
 private val TextMain = Color(0xFF17191D)
 private val TextDim = Color(0xFF6B7380)
@@ -152,8 +152,10 @@ class PillWidget : GlanceAppWidget() {
 
 @Composable
 private fun PillContent(parked: Boolean, floor: String?, startedAtMs: Long, lotName: String?) {
+    val context = LocalContext.current
     val wide = LocalSize.current.width >= 200.dp
-    Row(
+
+    Box(
         modifier = GlanceModifier
             .fillMaxSize()
             .background(BgCard)
@@ -161,48 +163,33 @@ private fun PillContent(parked: Boolean, floor: String?, startedAtMs: Long, lotN
             .clickable(
                 if (parked) actionStartActivity<MainActivity>()
                 else actionStartActivity<FloorPickerActivity>()
-            )
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
+            ),
+        contentAlignment = Alignment.Center
     ) {
         if (parked) {
-            Text(
-                floor ?: "P",
-                style = TextStyle(
-                    color = ColorProvider(Neon),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                maxLines = 1
-            )
-            Spacer(GlanceModifier.width(12.dp))
-            // 경과 시간 H:MM — 숫자는 버건디 (한 화면 한 곳)
-            Text(
-                formatElapsedHm(startedAtMs),
-                style = TextStyle(
-                    color = ColorProvider(Accent),
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                maxLines = 1
-            )
-            if (wide) {
-                Spacer(GlanceModifier.width(12.dp))
-                Text(
-                    listOfNotNull("주차 ${formatTime(startedAtMs)}", lotName?.take(8))
-                        .joinToString(" · "),
-                    style = TextStyle(color = ColorProvider(TextDim), fontSize = 11.sp),
-                    maxLines = 1
-                )
+            val views = RemoteViews(context.packageName, R.layout.widget_pill).apply {
+                setTextViewText(R.id.w_floor, floor ?: "P")
+                setTextViewText(R.id.w_elapsed, formatElapsedHm(startedAtMs))
+                if (wide) {
+                    setViewVisibility(R.id.w_sub, View.VISIBLE)
+                    setTextViewText(
+                        R.id.w_sub,
+                        listOfNotNull("주차 ${formatTime(startedAtMs)}", lotName?.take(10))
+                            .joinToString(" · ")
+                    )
+                } else {
+                    setViewVisibility(R.id.w_sub, View.GONE)
+                }
             }
+            AndroidRemoteViews(remoteViews = views, modifier = GlanceModifier.fillMaxSize())
         } else {
-            Column {
+            Column(modifier = GlanceModifier.padding(horizontal = 16.dp)) {
                 Text(
                     "탭해서 기록",
                     style = TextStyle(
                         color = ColorProvider(TextMain),
                         fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Bold
                     ),
                     maxLines = 1
                 )
@@ -232,6 +219,7 @@ class GaugeWidget : GlanceAppWidget() {
 
 @Composable
 private fun GaugeContent(parked: Boolean, floor: String?, startedAtMs: Long) {
+    val context = LocalContext.current
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -240,34 +228,35 @@ private fun GaugeContent(parked: Boolean, floor: String?, startedAtMs: Long) {
             .clickable(
                 if (parked) actionStartActivity<MainActivity>()
                 else actionStartActivity<FloorPickerActivity>()
-            )
-            .padding(horizontal = 6.dp, vertical = 4.dp),
+            ),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                if (parked) (floor ?: "P") else "—",
-                style = TextStyle(
-                    color = ColorProvider(if (parked) Neon else TextDim),
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                maxLines = 1
-            )
-            Text(
-                if (parked) formatElapsedHm(startedAtMs) else "기록",
-                style = TextStyle(
-                    color = ColorProvider(if (parked) Accent else TextDim),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                maxLines = 1
-            )
+        if (parked) {
+            val views = RemoteViews(context.packageName, R.layout.widget_gauge).apply {
+                setTextViewText(R.id.w_floor, floor ?: "P")
+                setTextViewText(R.id.w_elapsed, formatElapsedHm(startedAtMs))
+            }
+            AndroidRemoteViews(remoteViews = views, modifier = GlanceModifier.fillMaxSize())
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "—",
+                    style = TextStyle(
+                        color = ColorProvider(TextDim),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+                Text(
+                    "기록",
+                    style = TextStyle(color = ColorProvider(TextDim), fontSize = 12.sp)
+                )
+            }
         }
     }
 }
 
-/** 경과 시간 "시간:분" — 3:14 / 40:52. 24시간을 넘어도 시간이 그대로 커진다 (사용자 요청 표기) */
+/** 경과 시간 "시간:분" — 3:14 / 40:52. 24시간을 넘어도 시간이 그대로 커진다 */
 private fun formatElapsedHm(startedAtMs: Long): String {
     if (startedAtMs <= 0L) return "0:00"
     val minutes = ((System.currentTimeMillis() - startedAtMs) / 60_000L).coerceAtLeast(0L)

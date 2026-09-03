@@ -92,24 +92,6 @@ class ParkingStore(context: Context) {
         get() = prefs.getBoolean(KEY_CONFIRM_CARD, true)
         set(value) = prefs.edit().putBoolean(KEY_CONFIRM_CARD, value).apply()
 
-    /** v3.7: 대시보드 빠른 설정(미리보기)에 별표로 올려둔 설정 키들 */
-    var starredSettings: Set<String>
-        get() = prefs.getStringSet(KEY_STARRED_SETTINGS, DEFAULT_STARRED)!!.toSet()
-        set(value) = prefs.edit().putStringSet(KEY_STARRED_SETTINGS, value).apply()
-
-    /** v3.9.4: 대시보드에 최근 주차 카드를 띄울지 (v3.9.5: 기본 숨김 — 대신 위치 카드) */
-    var showRecentCard: Boolean
-        get() = prefs.getBoolean(KEY_SHOW_RECENT_CARD, false)
-        set(value) = prefs.edit().putBoolean(KEY_SHOW_RECENT_CARD, value).apply()
-
-    /**
-     * 대시보드 설정 카드의 아코디언(전체 목록) 펼침 상태 — 닫고 나가면 그대로 유지.
-     * v4.2: 즐겨찾기 행은 항상 보이므로 아코디언은 기본 접힘 (키 교체로 이전 값과 분리).
-     */
-    var quickSettingsExpanded: Boolean
-        get() = prefs.getBoolean(KEY_SETTINGS_ACCORDION_OPEN, false)
-        set(value) = prefs.edit().putBoolean(KEY_SETTINGS_ACCORDION_OPEN, value).apply()
-
     /** v2: 기압 자동감지 베타 — 추정 층을 미리 선택만, 확정은 항상 사람 탭 (절대 규칙 5) */
     var pressureAutoDetect: Boolean
         get() = prefs.getBoolean(KEY_PRESSURE_AUTO, false)
@@ -356,14 +338,8 @@ class ParkingStore(context: Context) {
         private const val KEY_APP_ICON_COLOR = "app_icon_color"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_CONFIRM_CARD = "confirm_card"
-        private const val KEY_STARRED_SETTINGS = "starred_settings"
-        private const val KEY_SHOW_RECENT_CARD = "show_recent_card"
-        private const val KEY_SETTINGS_ACCORDION_OPEN = "settings_accordion_open"
         private const val KEY_LAST_CAR_EVENT_AT = "last_car_event_at"
         private const val KEY_LAST_CAR_EVENT_CONNECTED = "last_car_event_connected"
-
-        /** 대시보드 빠른 설정 기본 구성 */
-        val DEFAULT_STARRED = setOf(STAR_PRESSURE, STAR_SHEET_MODE)
 
         const val SHEET_FLOOR = "floor"
         const val SHEET_FLOOR_MEMO = "floor_memo"
@@ -373,10 +349,5 @@ class ParkingStore(context: Context) {
         const val THEME_DARK = "dark"
         const val THEME_LIGHT = "light"
 
-        /** v3.7: 별표(빠른 설정) 가능한 설정 키 */
-        const val STAR_PRESSURE = "pressure"     // 자동감지 토글
-        const val STAR_THEME = "theme"           // 테마 순환
-        const val STAR_SHEET_MODE = "sheetmode"  // 바텀시트 기본 동작 순환
-        const val STAR_CONFIRM = "confirm"       // 등록 확인 카드 토글
     }
 }

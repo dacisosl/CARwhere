@@ -50,11 +50,16 @@ data class Palette(
     val accentSoft: Color  // 포인트 배지 배경
 )
 
-/** 라이트(기본): 화이트 바탕 — 사용자 팔레트 그대로 */
+/**
+ * 라이트(기본): 화이트 카드 + 아주 옅은 회색 바탕.
+ * v5.2 — 바탕과 카드가 둘 다 순백이면 경계가 안 보인다는 피드백:
+ * 바탕을 #F3F4F2로 한 톤 내리고 카드를 순백으로 올려 카드가 "떠 보이게" 한다.
+ * (테두리·그림자는 Modifier.appCard가 얹는다)
+ */
 val LightPalette = Palette(
-    bgScreen = Color(0xFFFFFFFF),
-    bgDeep = Color(0xFFF6F7F6),
-    bgPanel = Color(0xFFECEFEC),
+    bgScreen = Color(0xFFF3F4F2),
+    bgDeep = Color(0xFFFFFFFF),
+    bgPanel = Color(0xFFEEF0EE),
     border = Color(0xFFE1E1E2),
     textDim = Color(0xFF9AA0A8),
     textSub = Color(0xFF6B7380),
@@ -141,6 +146,17 @@ object AppType {
         letterSpacing = 2.sp, fontFamily = DisplayFont
     )
     val FloorButton = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium)
+
+    /**
+     * 표지판 글자 (v5.2) — 층수·워드마크처럼 "사인"으로 읽혀야 하는 곳.
+     * Black 굵기 + 좁은 자간. 시스템 한글 폰트도 Black을 지원한다.
+     */
+    val Sign = TextStyle(
+        fontSize = 40.sp,
+        fontWeight = FontWeight.Black,
+        fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
+        letterSpacing = (-0.5).sp
+    )
     val Body = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Normal)
     val BodySmall = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal)
     val Hint = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal)

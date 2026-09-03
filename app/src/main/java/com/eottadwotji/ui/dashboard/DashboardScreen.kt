@@ -10,24 +10,22 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -64,10 +62,11 @@ import com.eottadwotji.data.PhotoStore
 import com.eottadwotji.data.UpdateChecker
 import com.eottadwotji.detection.ParkingDetectionService
 import com.eottadwotji.ui.components.BrandWordmark
-import com.eottadwotji.ui.components.CircularGauge
+import com.eottadwotji.ui.components.FloorSign
 import com.eottadwotji.ui.floorpicker.FloorPickerActivity
 import com.eottadwotji.ui.theme.AppType
 import com.eottadwotji.ui.theme.Concrete
+import com.eottadwotji.ui.theme.appCard
 import com.eottadwotji.ui.widget.WidgetUpdater
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -77,16 +76,18 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 대시보드 v5.0 — 홈 탭 (사용자 스케치 "대규모 수정").
+ * 대시보드 v5.2 — 홈 탭.
  *
- *   헤더          워드마크 + 감지 LED + 마지막 차량 신호(진단)
- *   경과시간 바   "경과시간  03:14" — 카드 폭 전체, 가장 먼저 읽히는 정보
- *   타일 2개      [층수 엔진 버튼 → 다시 기록/수동 기록] [사진 또는 내 차 아이콘 → 사진 보기/찍기]
- *   지도 카드     [🔍][집][학교]… 칩 + 지도 (칩 탭 → 그 위치로, 검색 → 저장 위치/지오코딩)
+ *   헤더        [P] 어따뒀지 + 감지 LED + 차량 신호 진단 한 줄
+ *   경과시간    "경과시간 · 주차 13:54"  ……  3:14 (버건디 숫자)
+ *   타일 2개    [층 표지판 → 다시 기록]  [주차된 차 / 사진 → 카메라·크게 보기]
+ *   지도 카드   남는 높이를 전부 채운다 (기종마다 다른 화면 높이에 맞춤)
+ *   맨 아래     "테스트: 하차 시뮬" 작은 링크
  *
- * 위치 편집·설정은 하단 탭(위치관리·설정)으로 나갔다 — 이 화면엔 결정 하나씩만 남긴다.
- * 형광은 엔진 버튼 링·감지 LED·선택 칩 테두리 (절대 규칙 3).
- * 내 위치는 화면 복귀 시 1회만 조회 (절대 규칙 6 — 상시 추적 금지).
+ * v5.2 변경 (사용자 피드백):
+ * - 스크롤 제거 → 지도 카드가 weight(1f)로 남는 높이를 먹는다 (지도 밑 여백 없음)
+ * - 원형 엔진 버튼 폐기 → 층 표지판(FloorSign). 상태바 아이콘과 같은 조형·색
+ * - 모든 카드 Modifier.appCard() — 테두리+그림자로 바탕과 확실히 구분
  */
 @Composable
 fun DashboardScreen() {
@@ -164,12 +165,18 @@ fun DashboardScreen() {
         cameraLauncher.launch(uri)
     }
 
+    val batteryExempt = remember(refreshKey) {
+        runCatching {
+            (context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager)
+                .isIgnoringBatteryOptimizations(context.packageName)
+        }.getOrDefault(true)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Concrete.BgScreen)
             .statusBarsPadding() // 하단은 탭바(MainShell)가 맡는다 — 절대 규칙 8
-            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
         // ── 헤더: 워드마크 + 감지 LED ──
@@ -177,7 +184,7 @@ fun DashboardScreen() {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BrandWordmark(fontSizeSp = 27f)
+            BrandWordmark(fontSizeSp = 24f)
             Spacer(Modifier.weight(1f))
             DetectionBadge(detecting)
         }
@@ -197,7 +204,7 @@ fun DashboardScreen() {
 
         // ── 업데이트 배너 (새 버전이 있을 때만) ──
         update?.let { u ->
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             BannerRow(
                 text = if (downloading) "다운로드 중 — 완료되면 설치 화면이 떠요"
                 else "새 버전 ${u.label} 나왔어요",
@@ -210,18 +217,9 @@ fun DashboardScreen() {
         }
 
         // ── 배터리 최적화 예외 안내 (삼성 등에서 감지가 끊기는 최대 원인 — v3.9) ──
-        val batteryExempt = remember(refreshKey) {
-            runCatching {
-                (context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager)
-                    .isIgnoringBatteryOptimizations(context.packageName)
-            }.getOrDefault(true)
-        }
         if (detecting && !batteryExempt) {
-            Spacer(Modifier.height(12.dp))
-            BannerRow(
-                text = "감지가 끊기지 않게 배터리 예외를 허용해주세요",
-                action = "허용"
-            ) {
+            Spacer(Modifier.height(10.dp))
+            BannerRow(text = "감지가 끊기지 않게 배터리 예외를 허용해주세요", action = "허용") {
                 runCatching {
                     context.startActivity(
                         Intent(
@@ -233,19 +231,23 @@ fun DashboardScreen() {
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
 
         // ── 경과시간 바 ──
         ElapsedBar(parked = isParked, startedAtMs = startedAt, detecting = detecting)
 
         Spacer(Modifier.height(10.dp))
 
-        // ── 타일 2개: [층수 엔진 버튼] [사진 / 내 차 아이콘] ──
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        // ── 타일 2개: [층 표지판] [주차된 차 / 사진] ──
+        // 높이를 고정해 아래 지도 카드가 먹을 공간이 기종마다 예측 가능하게 남는다
+        Row(
+            modifier = Modifier.fillMaxWidth().height(148.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             FloorTile(
                 floor = floor,
                 parked = isParked,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 onPress = { openFloorPicker(context, manual = !isParked) }
             )
             PhotoTile(
@@ -253,10 +255,10 @@ fun DashboardScreen() {
                 parked = isParked,
                 appIconCar = store.appIconCar,
                 appIconColor = store.appIconColor,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 onPress = {
                     when {
-                        !isParked -> Unit // 주차 전엔 사진 슬롯이 비어 있다 — 아이콘만
+                        !isParked -> Unit // 주차 전엔 사진 슬롯이 비어 있다 — 내 차만 보여준다
                         photoUri != null -> showPhotoDialog = true
                         else -> takePhoto()
                     }
@@ -266,41 +268,30 @@ fun DashboardScreen() {
 
         Spacer(Modifier.height(10.dp))
 
-        // ── 지도 카드: 위치 칩(검색 포함) + 지도 ──
+        // ── 지도 카드: 남는 높이를 전부 채운다 (v5.2 반응형) ──
         CarMapCard(
             lots = lots,
             selectedLotId = focusLotId,
             carCoords = carCoords,
             myCoords = myCoords,
             parked = isParked,
-            onLotSelect = { selectedLotId = it.id }
+            onLotSelect = { selectedLotId = it.id },
+            modifier = Modifier.fillMaxWidth().weight(1f).heightIn(min = 140.dp)
         )
 
-        // 디버그 빌드 한정: 감지 시뮬레이션 (에뮬레이터에서 BT 이벤트 재현 불가 대응)
-        if (BuildConfig.DEBUG) {
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    "[디버그] 하차 시뮬",
-                    style = AppType.Hint,
-                    color = Concrete.TextDim,
-                    modifier = Modifier.clickable {
-                        store.recordCarEvent(connected = false)
-                        ParkingDetectionService.notifyCarDisconnected(context)
-                    }
-                )
-                Text(
-                    "[디버그] 재탑승 시뮬",
-                    style = AppType.Hint,
-                    color = Concrete.TextDim,
-                    modifier = Modifier.clickable {
-                        store.recordCarEvent(connected = true)
-                        ParkingDetectionService.notifyCarConnected(context)
-                    }
-                )
-            }
-        }
-        Spacer(Modifier.height(16.dp))
+        // ── 테스트: 실기기에서 감지 경로를 그대로 태워 본다 (릴리스에도 노출 — v5.2) ──
+        Text(
+            "테스트: 하차 시뮬 (5초 뒤 기록 시트)",
+            style = AppType.Micro,
+            color = Concrete.TextDim,
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .clickable {
+                    store.recordCarEvent(connected = false)
+                    ParkingDetectionService.notifyCarDisconnected(context)
+                }
+                .padding(top = 8.dp, bottom = 2.dp)
+        )
     }
 
     if (showPhotoDialog && photoUri != null) {
@@ -317,7 +308,7 @@ fun DashboardScreen() {
 
 // ── 헤더 ─────────────────────────────────────────────────────
 
-/** 계기판 인디케이터 LED: 감지 중이면 글로우 점등 (v3.9) */
+/** 감지 인디케이터: 감지 중이면 그린 점 + 옅은 글로우 */
 @Composable
 private fun DetectionBadge(detecting: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -329,7 +320,7 @@ private fun DetectionBadge(detecting: Boolean) {
                         .background(
                             Brush.radialGradient(
                                 listOf(
-                                    Concrete.Neon.copy(alpha = 0.55f),
+                                    Concrete.Neon.copy(alpha = 0.35f),
                                     Concrete.Neon.copy(alpha = 0f)
                                 )
                             ),
@@ -339,7 +330,7 @@ private fun DetectionBadge(detecting: Boolean) {
             }
             Box(
                 modifier = Modifier
-                    .size(6.dp)
+                    .size(7.dp)
                     .background(if (detecting) Concrete.Neon else Concrete.TextDim, CircleShape)
             )
         }
@@ -347,7 +338,7 @@ private fun DetectionBadge(detecting: Boolean) {
         Text(
             if (detecting) "감지 중" else "수동 모드",
             style = AppType.Hint,
-            color = if (detecting) Concrete.NeonLight else Concrete.TextDim
+            color = if (detecting) Concrete.Neon else Concrete.TextDim
         )
     }
 }
@@ -362,7 +353,7 @@ private fun BannerRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Concrete.BgDeep, RoundedCornerShape(12.dp))
+            .appCard(12.dp)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -370,7 +361,7 @@ private fun BannerRow(
         Text(text, style = AppType.BodySmall, color = Concrete.TextBody, modifier = Modifier.weight(1f))
         if (action != null) {
             Spacer(Modifier.size(8.dp))
-            Text(action, style = AppType.BodySmall, color = Concrete.NeonLight)
+            Text(action, style = AppType.BodySmall, color = Concrete.Neon)
         }
     }
 }
@@ -378,15 +369,15 @@ private fun BannerRow(
 // ── 경과시간 바 ────────────────────────────────────────────────
 
 /**
- * 경과시간 — 카드 폭 전체를 쓰는 한 줄. 스케치의 맨 위 요소.
- * 왼쪽 라벨, 오른쪽 트립미터 숫자(H:MM). 주차 전엔 "--:--"와 다음 행동 힌트.
+ * 경과시간 — 카드 폭 전체를 쓰는 한 줄.
+ * 왼쪽 라벨·주차 시각, 오른쪽 H:MM 숫자(버건디 — 이 화면의 포인트색 한 곳).
  */
 @Composable
 private fun ElapsedBar(parked: Boolean, startedAtMs: Long, detecting: Boolean) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Concrete.BgDeep, RoundedCornerShape(16.dp))
+            .appCard()
             .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -394,27 +385,21 @@ private fun ElapsedBar(parked: Boolean, startedAtMs: Long, detecting: Boolean) {
             Text(
                 if (parked) "경과시간" else "지금 주차 중이 아니에요",
                 style = if (parked) AppType.SectionLabel else AppType.Body,
-                color = if (parked) Concrete.TextSub else Concrete.TextSub
+                color = Concrete.TextSub
             )
-            if (parked) {
-                Text(
-                    "주차 ${formatTime(startedAtMs)}",
-                    style = AppType.Hint,
-                    color = Concrete.TextDim
-                )
-            } else {
-                Text(
-                    if (detecting) "차에서 내리면 자동으로 물어볼게요"
-                    else "왼쪽 엔진 버튼을 눌러 수동으로 기록해요",
-                    style = AppType.Hint,
-                    color = Concrete.TextDim
-                )
-            }
+            Text(
+                when {
+                    parked -> "주차 ${formatTime(startedAtMs)}"
+                    detecting -> "차에서 내리면 자동으로 물어볼게요"
+                    else -> "왼쪽 층 표지판을 눌러 수동으로 기록해요"
+                },
+                style = AppType.Hint,
+                color = Concrete.TextDim
+            )
         }
-        // 숫자 = 머스크 버건디 — 이 화면에서 포인트색은 여기 한 곳 (면적 비율 3)
         Text(
             if (parked) formatElapsedClock(startedAtMs) else "--:--",
-            style = AppType.GaugeFloor.copy(fontSize = 34.sp),
+            style = AppType.Sign.copy(fontSize = 34.sp),
             color = if (parked) Concrete.Accent else Concrete.TextDim,
             maxLines = 1
         )
@@ -423,7 +408,7 @@ private fun ElapsedBar(parked: Boolean, startedAtMs: Long, detecting: Boolean) {
 
 // ── 타일 ──────────────────────────────────────────────────────
 
-/** 층수 타일 — 정사각 카드 안에 엔진 스타트 버튼. 누르면 다시 기록(주차 전엔 수동 기록) */
+/** 층 타일 — 카드 안에 층 표지판. 누르면 다시 기록(주차 전엔 수동 기록) */
 @Composable
 private fun FloorTile(
     floor: String?,
@@ -433,25 +418,28 @@ private fun FloorTile(
 ) {
     Box(
         modifier = modifier
-            .aspectRatio(1f)
-            .background(Concrete.BgDeep, RoundedCornerShape(16.dp)),
+            .appCard()
+            .clickable(onClick = onPress),
         contentAlignment = Alignment.Center
     ) {
-        CircularGauge(floor = floor, parked = parked, size = 124.dp, onPress = onPress)
-        Text(
-            if (parked) "탭해서 다시 기록" else "탭해서 수동 기록",
-            style = AppType.Micro,
-            color = Concrete.TextDim,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 10.dp)
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            FloorSign(floor = floor, fontSize = 52.sp, lit = parked)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (parked) "탭해서 다시 기록" else "탭해서 수동 기록",
+                style = AppType.Micro,
+                color = Concrete.TextDim
+            )
+        }
     }
 }
 
 /**
- * 사진 타일 — 주차 사진이 있으면 사진을 꽉 채우고, 없으면 내 차(앱 아이콘)를 보여준다.
- * 탭: 사진 있음 → 크게 보기 / 없음(주차 중) → 카메라. 주차 전엔 아이콘만.
+ * 사진 타일 — 주차 사진이 있으면 사진을 꽉 채우고, 없으면 "주차된 내 차"를 보여준다.
+ *
+ * v5.2: 동그란 앱 아이콘을 버리고 어두운 주차 구획 위에 차가 서 있는 장면으로 바꿨다.
+ * 에셋(ic_fg_*)이 이미 "주차 구획에 세워진 차" 사진이라 아래쪽(차+바닥)만 크롭해서 쓴다.
+ * 바닥에 그린 언더글로우를 얹어 시그니처 색과 연결한다.
  */
 @Composable
 private fun PhotoTile(
@@ -466,13 +454,14 @@ private fun PhotoTile(
     val photo: Bitmap? = remember(photoUri) {
         photoUri?.let { PhotoStore.loadPhoto(context, it) }
     }
-    val iconBitmap = remember(appIconCar, appIconColor) { loadAppIconBitmap(context, appIconCar, appIconColor) }
+    val carBitmap = remember(appIconCar, appIconColor) {
+        loadCarBitmap(context, appIconCar, appIconColor)
+    }
 
     Box(
         modifier = modifier
-            .aspectRatio(1f)
+            .appCard()
             .clip(RoundedCornerShape(16.dp))
-            .background(Concrete.BgDeep)
             .clickable(onClick = onPress)
     ) {
         if (photo != null) {
@@ -482,47 +471,64 @@ private fun PhotoTile(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
-            Text(
-                "사진 보기",
-                style = AppType.Micro,
-                color = Concrete.TextMain,
+            Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 8.dp)
                     .background(Color(0x99000000), RoundedCornerShape(10.dp))
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
-            )
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_camera),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(Modifier.size(4.dp))
+                Text("사진 보기", style = AppType.Micro, color = Color.White)
+            }
         } else {
-            // 내 차 — 원판 + 앱 아이콘 (주차 중이면 링 점등)
+            // 주차 구획: 어두운 바닥 + 그린 언더글로우 + 차
             Box(
                 modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(bottom = 10.dp)
-                    .size(96.dp)
-                    .clip(CircleShape)
+                    .fillMaxSize()
                     .background(
-                        Brush.radialGradient(
-                            colors = listOf(Concrete.BgScreen, Concrete.BgPanel),
-                            radius = 150f
+                        Brush.verticalGradient(
+                            listOf(Color(0xFF23272C), Color(0xFF14161A))
                         )
                     )
-                    .border(
-                        2.dp,
-                        if (parked) Concrete.Neon else Concrete.Border.copy(alpha = 0.5f),
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
             ) {
-                if (iconBitmap != null) {
+                // 바닥 언더글로우 (차가 서 있는 자리)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth(0.82f)
+                        .height(34.dp)
+                        .padding(bottom = 22.dp)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(
+                                    Concrete.Neon.copy(alpha = if (parked) 0.55f else 0.18f),
+                                    Color.Transparent
+                                )
+                            ),
+                            RoundedCornerShape(50)
+                        )
+                )
+                if (carBitmap != null) {
+                    // 에셋 아래쪽(차 + 바닥)만 보이도록 아래 정렬 + 확대
                     Image(
-                        bitmap = iconBitmap.asImageBitmap(),
+                        bitmap = carBitmap.asImageBitmap(),
                         contentDescription = "내 차",
                         contentScale = ContentScale.Crop,
+                        alignment = Alignment.BottomCenter,
                         modifier = Modifier
                             .fillMaxSize()
+                            .padding(bottom = 20.dp)
                             .graphicsLayer {
-                                scaleX = 1.48f
-                                scaleY = 1.48f
+                                scaleX = 1.32f
+                                scaleY = 1.32f
                                 alpha = if (parked) 1f else 0.6f
                             }
                     )
@@ -530,39 +536,52 @@ private fun PhotoTile(
                     Icon(
                         painter = painterResource(R.drawable.ic_car),
                         contentDescription = "내 차",
-                        tint = if (parked) Concrete.Neon else Concrete.TextDim,
-                        modifier = Modifier.size(40.dp)
+                        tint = if (parked) Concrete.Neon else Color(0xFF6B7380),
+                        modifier = Modifier.align(Alignment.Center).size(48.dp)
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (parked) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_camera),
+                            contentDescription = null,
+                            tint = Color(0xFFB8BEC6),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(Modifier.size(4.dp))
+                    }
+                    Text(
+                        if (parked) "탭해서 사진 찍기" else "내 차",
+                        style = AppType.Micro,
+                        color = Color(0xFFB8BEC6)
                     )
                 }
             }
-            Text(
-                if (parked) "탭해서 사진 찍기" else "내 차",
-                style = AppType.Micro,
-                color = Concrete.TextDim,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 10.dp)
-            )
         }
     }
 }
 
 /**
- * 내 차 아이콘 비트맵: 설정에서 고른 차종·색 전경(ic_fg_*) → 없으면 런처에 깔린 앱 아이콘.
- * 어댑티브 아이콘은 가운데 72/108만 콘텐츠라 호출부에서 1.48배로 키운다.
+ * 내 차 이미지: 설정에서 고른 차종·색 에셋(ic_fg_*) → 없으면 런처 아이콘.
+ * 에셋은 "주차 구획에 세워진 차" 아트라 타일에 그대로 쓸 수 있다.
  */
-private fun loadAppIconBitmap(context: Context, car: String?, color: String?): Bitmap? {
+private fun loadCarBitmap(context: Context, car: String?, color: String?): Bitmap? {
     val resId = if (car != null && color != null) {
         context.resources.getIdentifier("ic_fg_${car}_$color", "drawable", context.packageName)
     } else {
-        0
+        R.drawable.ic_fg_sedan_white // 기본 = 흰색 중형차 (v3.5)
     }
     val drawable = if (resId != 0) {
         ContextCompat.getDrawable(context, resId)
     } else {
         runCatching { context.packageManager.getApplicationIcon(context.packageName) }.getOrNull()
     }
-    return drawable?.let { runCatching { it.toBitmap(width = 288, height = 288) }.getOrNull() }
+    return drawable?.let { runCatching { it.toBitmap(width = 432, height = 432) }.getOrNull() }
 }
 
 // ── 공용 ──────────────────────────────────────────────────────
@@ -603,7 +622,7 @@ private fun fetchMyLocationOnce(context: Context, onResult: (Pair<Double, Double
 }
 
 @Composable
-private fun SmallConcreteButton(
+private fun SheetButton(
     label: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
@@ -626,7 +645,7 @@ private fun PhotoDialog(uriString: String, onRetake: () -> Unit, onDismiss: () -
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
-                .background(Concrete.BgDeep, RoundedCornerShape(12.dp))
+                .background(Concrete.BgDeep, RoundedCornerShape(16.dp))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -635,14 +654,14 @@ private fun PhotoDialog(uriString: String, onRetake: () -> Unit, onDismiss: () -
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = "주차 사진",
                     contentScale = ContentScale.FillWidth,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
                 )
             } else {
                 Text("사진을 불러올 수 없어요", style = AppType.Body, color = Concrete.TextSub)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                SmallConcreteButton("다시 찍기", Modifier.weight(1f), onRetake)
-                SmallConcreteButton("닫기", Modifier.weight(1f), onDismiss)
+                SheetButton("다시 찍기", Modifier.weight(1f), onRetake)
+                SheetButton("닫기", Modifier.weight(1f), onDismiss)
             }
         }
     }

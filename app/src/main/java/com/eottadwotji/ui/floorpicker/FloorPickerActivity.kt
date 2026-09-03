@@ -50,12 +50,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -70,8 +66,10 @@ import com.eottadwotji.data.ParkingStore
 import com.eottadwotji.data.PhotoStore
 import com.eottadwotji.detection.ParkingNotification
 import com.eottadwotji.ui.components.FloorSelector
+import com.eottadwotji.ui.components.FloorSign
 import com.eottadwotji.ui.theme.AppType
 import com.eottadwotji.ui.theme.Concrete
+import com.eottadwotji.ui.theme.appCard
 import com.eottadwotji.ui.theme.EottadwotjiTheme
 import com.eottadwotji.ui.widget.WidgetUpdater
 import com.google.android.gms.location.LocationServices
@@ -79,22 +77,22 @@ import kotlinx.coroutines.delay
 import java.util.UUID
 
 /**
- * 기록 바텀시트 v5 (사용자 스케치 "기록 디자인").
+ * 기록 바텀시트 v5.2 (사용자 스케치 + 피드백 반영).
  *
  * 한 장의 카드에서 끝낸다:
- *   [위치정보  (집 ▾) 또는 (⊕ 위치 등록)]                     [주차]
- *          ◁   ┌ B1 ┐   ▷        ┆ 사진 ┆
+ *   [위치정보  (집 ▾) 또는 (⊕ 위치 등록)]                 [📷 사진]
+ *          ◁   ┌ B1 ┐   ▷              ┌ 주차 ┐
  *   메모 ___________________________________ 🎤
  *
  * - 층은 ◁ ▷ 스테퍼로 고른다 (◁ 위층, ▷ 아래층). 기압 추정·지난번 층이 초기값.
- * - 사진 슬롯을 누르면 카메라, 찍으면 그 자리에 썸네일.
+ *   층 박스는 상태바 아이콘과 같은 층별 색 표지판 (FloorTone).
+ * - v5.2 배치: 가장 중요한 [주차]가 큰 자리(오른쪽 사각)로 오고, 사진은 헤더의 작은
+ *   카메라 버튼으로 갔다. 찍으면 헤더 버튼에 썸네일이 들어간다.
  * - 메모는 한 줄 입력(음성 입력 지원). [주차]를 누르면 층·메모·사진을 한 번에 저장.
- * - 처음 온 위치면 헤더의 "⊕ 위치 등록"으로 이름·층 구성을 등록하고 돌아온다.
- * - 위치별 바텀시트 모드(층수만/층+메모/층+사진)는 더 이상 흐름을 나누지 않는다 —
- *   세 요소가 항상 한 카드에 있고 비워두면 그냥 건너뛴 것이 된다.
+ * - v5.2: 10초 무응답 자동 하강을 없앴다 — 시트는 사용자가 닫을 때까지 남고,
+ *   서비스가 주차 확정 즉시 층 없는 캡슐(P)을 이미 올려둔다.
  *
  * 투명 액티비티 + 하단 시트: 다른 앱 사용 중에도 화면 하단을 덮는다 (오버레이 권한).
- * 감지로 열렸을 땐 10초 무응답 시 시트가 내려가고 서비스가 "위치만 저장됨"으로 처리한다.
  */
 class FloorPickerActivity : ComponentActivity() {
 
@@ -103,7 +101,6 @@ class FloorPickerActivity : ComponentActivity() {
         const val EXTRA_FROM_DETECTION = "from_detection"
 
         private const val SLIDE_UP_MS = 220         // 시트 등장
-        private const val AUTO_DISMISS_MS = 10_000L // 무응답 → 시트 하강
         private const val LOT_RECHECK_MS = 600L     // 수동 기록 좌표 조회 폴링 간격
         private const val LOT_RECHECK_TRIES = 4     // 폴링 횟수 (총 ~2.4초)
     }
@@ -130,11 +127,7 @@ class FloorPickerActivity : ComponentActivity() {
 
         setContent {
             EottadwotjiTheme {
-                RecordSheet(
-                    store = store,
-                    autoDismiss = fromDetection,
-                    onDone = { finish() }
-                )
+                RecordSheet(store = store, onDone = { finish() })
             }
         }
     }
@@ -156,7 +149,7 @@ class FloorPickerActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun RecordSheet(store: ParkingStore, autoDismiss: Boolean, onDone: () -> Unit) {
+    private fun RecordSheet(store: ParkingStore, onDone: () -> Unit) {
         val context = LocalContext.current
 
         var lot by remember { mutableStateOf(store.currentLot()) }
@@ -247,14 +240,6 @@ class FloorPickerActivity : ComponentActivity() {
             confirmOrFinish()
         }
 
-        // 무응답 10초 → 시트 하강 (서비스가 "위치만 저장됨" 알림 처리)
-        if (autoDismiss) {
-            LaunchedEffect(Unit) {
-                delay(AUTO_DISMISS_MS)
-                if (!interacted && savedFloor == null) onDone()
-            }
-        }
-
         val visibleState =
             remember { MutableTransitionState(false).apply { targetState = true } }
 
@@ -277,7 +262,7 @@ class FloorPickerActivity : ComponentActivity() {
                         .fillMaxWidth()
                         .background(
                             Concrete.BgScreen,
-                            RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                            RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
                         )
                         .clickable(enabled = false) {} // 시트 내부 탭이 스크림으로 새지 않게
                         .padding(horizontal = 20.dp)
@@ -322,14 +307,10 @@ class FloorPickerActivity : ComponentActivity() {
                                 }
                             },
                             onSave = saveParking,
-                            hint = when {
-                                strictEstimate ->
-                                    "기압 추정 첫 확인이에요 — 높이에 따라 다를 수 있으니 꼭 확인하세요"
-                                estimatedFloor != null -> "이 위치에 맞게 보정된 추정이에요"
-                                autoDismiss -> "◁ ▷로 층을 맞추고 주차 · 10초 무응답 시 위치만 저장"
-                                else -> "◁ ▷로 층을 맞추고 주차를 누르세요"
-                            },
-                            hintStrong = strictEstimate
+                            // v5.2: 조작 안내 문구는 삭제. 기압 추정 경고만 남긴다 (안전 문구)
+                            warning = if (strictEstimate)
+                                "기압 추정 첫 확인이에요 — 높이에 따라 다를 수 있으니 꼭 확인하세요"
+                            else null
                         )
 
                         Phase.LOT_SELECT -> {
@@ -458,9 +439,9 @@ private fun SheetTitle(title: String, onBack: (() -> Unit)?) {
 }
 
 /**
- * 기록 카드 — 스케치 그대로.
- * 헤더: "위치정보" + 위치 칩(등록됨) / "⊕ 위치 등록"(처음) … [주차]
- * 본문: ◁ [층] ▷ + 사진 슬롯 / 메모 한 줄
+ * 기록 카드 — 스케치 + v5.2 배치.
+ * 헤더: "위치정보" + 위치 칩 / "⊕ 위치 등록" …… [📷 사진]
+ * 본문: ◁ [층 표지판] ▷ + [주차] 큰 버튼 / 메모 한 줄
  */
 @Composable
 private fun RecordCard(
@@ -475,21 +456,19 @@ private fun RecordCard(
     onPhoto: () -> Unit,
     onLocationTap: () -> Unit,
     onSave: () -> Unit,
-    hint: String,
-    hintStrong: Boolean
+    warning: String?
 ) {
     val index = floorIndex.coerceIn(0, floors.size - 1)
     val floor = floors[index]
-    val basement = ParkingLotProfile.isBasement(floor)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Concrete.BgDeep, RoundedCornerShape(16.dp))
+            .appCard()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // ── 헤더: 위치정보 + [주차] ──
+        // ── 헤더: 위치정보 + 사진 ──
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -505,7 +484,7 @@ private fun RecordCard(
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(lot.name, style = AppType.BodySmall, color = Concrete.NeonLight)
+                    Text(lot.name, style = AppType.BodySmall, color = Concrete.Neon)
                     Spacer(Modifier.width(5.dp))
                     Text("▾", style = AppType.Hint, color = Concrete.TextDim)
                 }
@@ -523,19 +502,10 @@ private fun RecordCard(
                 }
             }
             Spacer(Modifier.weight(1f))
-            Box(
-                modifier = Modifier
-                    .height(42.dp)
-                    .background(Concrete.Neon, RoundedCornerShape(10.dp))
-                    .clickable(onClick = onSave)
-                    .padding(horizontal = 22.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("주차", style = AppType.FloorButton, color = Concrete.NeonDeep)
-            }
+            PhotoHeaderButton(uriString = photoUri, onClick = onPhoto)
         }
 
-        // ── 본문: ◁ 층 ▷ + 사진 ──
+        // ── 본문: ◁ 층 표지판 ▷ + [주차] ──
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -547,26 +517,13 @@ private fun RecordCard(
                 onClick = { onFloorIndex(index - 1) }
             )
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(96.dp)
-                    .background(Concrete.BgPanel, RoundedCornerShape(12.dp))
-                    .border(
-                        2.dp,
-                        if (basement) Concrete.Neon else Concrete.Accent,
-                        RoundedCornerShape(12.dp)
-                    ),
-                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 지하 = 시그니처 그린, 지상 = 포인트 버건디 (v5 층 색 체계)
-                Text(
-                    floor,
-                    style = AppType.GaugeFloor.copy(fontSize = 40.sp),
-                    color = if (basement) Concrete.Neon else Concrete.Accent,
-                    maxLines = 1
-                )
+                // 층 표지판 — 상태바 아이콘과 같은 색·조형
+                FloorSign(floor = floor, fontSize = 44.sp)
                 floorSuffix(floor)?.let {
+                    Spacer(Modifier.height(4.dp))
                     Text(it, style = AppType.Micro, color = Concrete.TextSub, maxLines = 1)
                 }
             }
@@ -576,18 +533,76 @@ private fun RecordCard(
                 enabled = index < floors.size - 1,
                 onClick = { onFloorIndex(index + 1) }
             )
-            Spacer(Modifier.width(10.dp))
-            PhotoSlot(uriString = photoUri, onClick = onPhoto)
+            Spacer(Modifier.width(12.dp))
+            // 가장 중요한 버튼 — 큰 자리, 시그니처 그린
+            Box(
+                modifier = Modifier
+                    .size(88.dp)
+                    .background(Concrete.Neon, RoundedCornerShape(14.dp))
+                    .clickable(onClick = onSave),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "주차",
+                    style = AppType.Sign.copy(fontSize = 22.sp),
+                    color = Concrete.NeonDeep
+                )
+            }
         }
 
         // ── 메모 한 줄 (음성 입력) ──
         MemoField(value = memo, onChange = onMemo, onDone = onSave)
 
+        warning?.let {
+            Text(
+                it,
+                style = AppType.Hint,
+                color = Concrete.Accent,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+        }
+    }
+}
+
+/**
+ * 헤더 사진 버튼 — 카메라 아이콘 + "사진".
+ * 이미 찍었으면 썸네일을 아이콘 자리에 넣어 "있다"는 걸 바로 보여준다 (탭 = 다시 찍기).
+ */
+@Composable
+private fun PhotoHeaderButton(uriString: String?, onClick: () -> Unit) {
+    val context = LocalContext.current
+    val bitmap: Bitmap? = remember(uriString) {
+        uriString?.let { PhotoStore.loadPhoto(context, it) }
+    }
+    Row(
+        modifier = Modifier
+            .background(Concrete.BgPanel, RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "주차 사진",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(RoundedCornerShape(5.dp))
+            )
+        } else {
+            Icon(
+                painter = painterResource(R.drawable.ic_camera),
+                contentDescription = null,
+                tint = Concrete.TextSub,
+                modifier = Modifier.size(17.dp)
+            )
+        }
+        Spacer(Modifier.width(6.dp))
         Text(
-            hint,
-            style = AppType.Hint,
-            color = if (hintStrong) Concrete.TextSub else Concrete.TextDim,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
+            if (bitmap != null) "사진 1" else "사진",
+            style = AppType.BodySmall,
+            color = Concrete.TextBody
         )
     }
 }
@@ -610,55 +625,6 @@ private fun StepArrow(symbol: String, caption: String, enabled: Boolean, onClick
             style = AppType.Micro,
             color = if (enabled) Concrete.TextDim else Concrete.Border
         )
-    }
-}
-
-/** 사진 슬롯 — 점선 상자. 사진이 있으면 썸네일로 채우고, 누르면 (다시) 촬영 */
-@Composable
-private fun PhotoSlot(uriString: String?, onClick: () -> Unit) {
-    val context = LocalContext.current
-    val bitmap: Bitmap? = remember(uriString) {
-        uriString?.let { PhotoStore.loadPhoto(context, it) }
-    }
-    val dash = Concrete.Border
-    Box(
-        modifier = Modifier
-            .size(84.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .then(
-                if (bitmap == null) Modifier.drawBehind {
-                    drawRoundRect(
-                        color = dash,
-                        cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx()),
-                        style = Stroke(
-                            width = 1.5.dp.toPx(),
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
-                        )
-                    )
-                } else Modifier
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = "주차 사진",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_camera),
-                    contentDescription = "사진 촬영",
-                    tint = Concrete.TextSub,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(Modifier.height(4.dp))
-                Text("사진", style = AppType.Micro, color = Concrete.TextSub)
-            }
-        }
     }
 }
 

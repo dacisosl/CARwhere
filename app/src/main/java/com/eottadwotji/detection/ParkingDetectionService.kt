@@ -32,7 +32,7 @@ import kotlin.math.roundToInt
  *   DRIVING ──(차 BT 끊김)──> PENDING(5초 대기) ──(재연결 없음)──> PARKED(바텀시트/알림)
  *   PENDING ──(5초 내 재연결)──> DRIVING (오작동 필터: 신호 순간 끊김 무시)
  *   PARKED  ──(차 BT 재연결)──> DRIVING (주차 기록 만료 → Room 히스토리, 표시 제거)
- *   PARKED  ──(10초 무응답)──> PARKED(층 없음, "위치만 저장됨" 표시)
+ *   PARKED  ──(시트를 그냥 둠)──> PARKED(층 없음, 캡슐은 "P" — v5.2에서 타임아웃 제거)
  *
  * v3.6 수명 정책 — "감지 대기 중" 상시 알림 제거:
  * 포그라운드 서비스 알림은 시스템이 최소 LOW로 승격해 상태바에 항상 떠 버린다.
@@ -48,7 +48,6 @@ class ParkingDetectionService : Service(), SensorEventListener {
 
     companion object {
         private const val RECONNECT_FILTER_MS = 5_000L
-        private const val FLOOR_TIMEOUT_MS = 10_000L
 
         /** 층고 약 3m ≈ 0.36hPa (PRD v2 7절) — 아래로 갈수록 기압 증가 */
         private const val PRESSURE_HPA_PER_FLOOR = 0.36f
@@ -89,7 +88,6 @@ class ParkingDetectionService : Service(), SensorEventListener {
 
     private val handler = Handler(Looper.getMainLooper())
     private var pendingParkingRunnable: Runnable? = null
-    private var floorTimeoutRunnable: Runnable? = null
 
     // 기압 추정 상태 (주행 세션 한정)
     private var pressureAtDriveStart: Float? = null
@@ -145,7 +143,6 @@ class ParkingDetectionService : Service(), SensorEventListener {
     /** 재연결(주행 시작): 필터 취소 + 기존 주차 기록 만료 + 기압 기준점 기록 */
     private fun onCarConnected() {
         cancelPendingFilter()
-        cancelFloorTimeout()
 
         val store = ParkingStore(this)
         if (store.hasActiveParking()) {
@@ -232,28 +229,25 @@ class ParkingDetectionService : Service(), SensorEventListener {
             )
         }
 
-        // 10초 무응답 → 층수 없이 "위치만 저장됨" 상태로 전환 (강요하지 않음 — PRD)
-        cancelFloorTimeout()
-        floorTimeoutRunnable = Runnable {
-            floorTimeoutRunnable = null
-            if (store.hasActiveParking() && store.currentFloor() == null) {
-                ParkingNotification.showParkedNotification(
-                    this, floor = null, startedAtMs = store.parkingStartedAt()
-                )
-                WidgetUpdater.update(this)
-            }
-            stopIfNothingToShow() // "홈 위젯만" 모드면 여기서 서비스 정리
-        }.also { handler.postDelayed(it, FLOOR_TIMEOUT_MS) }
+        // v5.2: 10초 무응답 타임아웃을 없앴다 (사용자 요청).
+        // 대신 시트를 띄우는 즉시 층 없는 캡슐(P)을 게시한다 — 사용자가 시트를 그냥 두거나
+        // 나중에 층을 골라도 상태바에는 항상 "주차 중"이 남는다. 층을 고르면 캡슐이 갱신된다.
+        if (store.hasActiveParking() && store.currentFloor() == null) {
+            ParkingNotification.showParkedNotification(
+                this, floor = null, startedAtMs = store.parkingStartedAt()
+            )
+            WidgetUpdater.update(this)
+        }
+        stopIfNothingToShow()
     }
 
     /**
      * 서비스가 계속 떠 있어야 할 이유가 없으면 종료 (v3.9.5).
-     * 남는 이유: ① 하차 판정/층 선택 대기 창 ② 주행 중 기압 샘플링.
+     * 남는 이유: ① 하차 판정(5초 재연결 필터) 대기 ② 주행 중 기압 샘플링.
      * 주차 캡슐은 서비스와 분리된 일반 알림이라 종료와 무관하게 유지된다.
      */
     private fun stopIfNothingToShow() {
-        val detectionWindow = pendingParkingRunnable != null || floorTimeoutRunnable != null
-        if (detectionWindow || pressureRegistered) return
+        if (pendingParkingRunnable != null || pressureRegistered) return
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -303,16 +297,10 @@ class ParkingDetectionService : Service(), SensorEventListener {
         pendingParkingRunnable = null
     }
 
-    private fun cancelFloorTimeout() {
-        floorTimeoutRunnable?.let { handler.removeCallbacks(it) }
-        floorTimeoutRunnable = null
-    }
-
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         cancelPendingFilter()
-        cancelFloorTimeout()
         stopPressureSampling()
         runCatching { unregisterReceiver(dynamicReceiver) }
         super.onDestroy()

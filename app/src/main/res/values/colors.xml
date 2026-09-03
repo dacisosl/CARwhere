@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#1E1E1C</color>
+    <!-- v5.2: 아이콘 배경도 팔레트의 잉크 블랙으로 통일 -->
+    <color name="ic_launcher_background">#17191D</color>
     <!-- v5 팔레트: 화이트 · 딥 파인 그린 · 머스크 버건디 -->
     <color name="neon">#2F6B4F</color>
     <color name="neon_deep">#FFFFFF</color>

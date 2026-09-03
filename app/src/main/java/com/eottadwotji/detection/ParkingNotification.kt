@@ -50,39 +50,15 @@ object ParkingNotification {
 
     private const val FLOOR_PICKER_TIMEOUT_MS = 10_000L
 
-    private const val NEON = 0xFFAEEA00.toInt()
+    /** 층을 모를 때(P)의 표지판 색 — 시그니처 딥 파인 그린 (v5.2) */
+    private val NEON = com.eottadwotji.ui.theme.FloorTone.UNKNOWN_ARGB
 
     /**
-     * 층별 색 (v4.3) — "지금 몇 층?"을 색만 보고 알게 하려는 것.
-     *
-     * 앱의 기존 위계를 그대로 확장한다: 지상은 따뜻한 앰버(주광), 지하는 차가운 라임 계열
-     * (FloorWheel의 지상 앰버 / 지하 네온과 같은 언어).
-     * 깊어질수록 색상(hue)을 옮기고 명도는 높게 유지한다 — 어두운 상태바에서 어두운 색은
-     * 아예 보이지 않으므로, 구분은 명도가 아니라 색상으로 준다.
-     *
-     *   지하  B1 라임 → B2 연두 → B3 초록 → B4 시안
-     *   지상  1F 앰버 → 2F 오렌지 → 3F 진한 주황 → 4F 코랄
+     * 층 이름 → 표지판 색. v5.2부터 공용 FloorTone에 위임한다 —
+     * 상태바 아이콘·알림 배경·홈 층수 타일·기록 카드 층 박스가 모두 같은 색을 쓴다.
      */
-    private val BASEMENT_TONES = intArrayOf(
-        0xFFC6FF00.toInt(), // B1 라임
-        0xFF76FF03.toInt(), // B2 연두
-        0xFF00E676.toInt(), // B3 초록
-        0xFF00E5FF.toInt()  // B4 시안
-    )
-    private val GROUND_TONES = intArrayOf(
-        0xFFFFD54F.toInt(), // 1F 앰버
-        0xFFFFAB40.toInt(), // 2F 오렌지
-        0xFFFF7043.toInt(), // 3F 진한 주황
-        0xFFFF5252.toInt()  // 4F 코랄
-    )
-
-    /** 층 이름 → 표지판 색. 층을 모르면(P) 기본 형광. 범위를 넘는 층은 가장 깊은 색 유지 */
-    internal fun floorColor(floor: String?): Int {
-        if (floor.isNullOrBlank()) return NEON
-        val number = floor.filter { it.isDigit() }.toIntOrNull() ?: return NEON
-        val tones = if (floor.startsWith("B")) BASEMENT_TONES else GROUND_TONES
-        return tones[(number - 1).coerceIn(0, tones.size - 1)]
-    }
+    internal fun floorColor(floor: String?): Int =
+        com.eottadwotji.ui.theme.FloorTone.argb(floor)
 
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)

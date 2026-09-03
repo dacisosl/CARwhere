@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  2x1 위젯 본문 (v5.2) — 한 줄: [층수] [경과시간] [주차 시각·장소].
+
+  왜 RemoteViews인가: Glance Text는 Bold가 최대 굵기라 "더 두껍게" 요구를 못 채운다.
+  네이티브 TextView는 sans-serif-black을 쓸 수 있어 가독성이 확실히 올라간다.
+  ellipsize 없음 + maxLines=1 + tnum(고정폭 숫자)로 잘림·흔들림을 막는다.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp">
+
+    <TextView
+        android:id="@+id/w_floor"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="none"
+        android:fontFamily="sans-serif-black"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="#2F6B4F"
+        android:textSize="24sp" />
+
+    <TextView
+        android:id="@+id/w_elapsed"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:ellipsize="none"
+        android:fontFamily="sans-serif-black"
+        android:fontFeatureSettings="tnum"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="#9E4A5C"
+        android:textSize="30sp" />
+
+    <TextView
+        android:id="@+id/w_sub"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-medium"
+        android:includeFontPadding="false"
+        android:maxLines="2"
+        android:textColor="#6B7380"
+        android:textSize="11sp" />
+</LinearLayout>

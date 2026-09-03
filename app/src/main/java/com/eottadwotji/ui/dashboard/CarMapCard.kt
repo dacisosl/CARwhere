@@ -60,7 +60,7 @@ import com.eottadwotji.R
 import com.eottadwotji.data.ParkingLotProfile
 import com.eottadwotji.ui.theme.AppType
 import com.eottadwotji.ui.theme.Concrete
-import com.eottadwotji.ui.theme.DarkPalette
+import com.eottadwotji.ui.theme.appCard
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
@@ -69,7 +69,6 @@ import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
-import org.osmdroid.views.overlay.TilesOverlay
 import java.io.File
 import java.util.Locale
 import kotlin.math.atan2
@@ -77,8 +76,12 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
+/** 지도 위 마커 색 — 구글 지도 계열의 익숙한 톤 (v5.2) */
+private val MAP_BLUE = 0xFF1A73E8.toInt()   // 내 위치
+private val MAP_INK = 0xFF17191D.toInt()    // 차 마커·경로·핀
+
 /**
- * 대시보드 지도 카드 (v5.0 — 사용자 스케치).
+ * 대시보드 지도 카드 (v5.2 — 사용자 스케치 + 반응형 높이).
  *
  * 위: 칩 줄 — [🔍 검색] [집] [학교] [직장] … 저장된 위치. 탭하면 지도가 그 위치로 이동.
  *     검색 칩을 누르면 입력창이 열리고, 이름이 맞는 저장 위치가 있으면 그곳으로,
@@ -87,7 +90,10 @@ import kotlin.math.sin
  *
  * 절대 규칙 6(상시 추적 금지): 내 위치는 화면 복귀 시 1회만 조회하고 저장하지 않는다.
  * 지도는 프리뷰 전용(스크롤 충돌 방지) — 탭하면 지도 앱으로 넘겨 길찾기.
- * 타일은 OSM(API 키 불필요), 다크 테마에선 색 반전 필터로 계기판 톤에 맞춘다.
+ *
+ * v5.2: 타일 색 반전 필터를 없앴다 — 지도는 사람들이 가장 익숙한 기본 OSM 색 그대로 두고,
+ * 마커도 시그니처 색이 아니라 지도에서 통용되는 색을 쓴다 (내 위치 파란 점, 차 잉크).
+ * 카드는 남는 높이를 받도록 modifier를 밖에서 받는다 (기종별 화면 높이 대응).
  */
 @Composable
 fun CarMapCard(
@@ -96,7 +102,8 @@ fun CarMapCard(
     carCoords: Pair<Double, Double>?,
     myCoords: Pair<Double, Double>?,
     parked: Boolean,
-    onLotSelect: (ParkingLotProfile) -> Unit
+    onLotSelect: (ParkingLotProfile) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var searching by remember { mutableStateOf(false) }
@@ -131,10 +138,9 @@ fun CarMapCard(
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Concrete.BgDeep, RoundedCornerShape(16.dp))
-            .padding(top = 14.dp, bottom = 14.dp)
+        modifier = modifier
+            .appCard()
+            .padding(vertical = 12.dp)
     ) {
         // ── 칩 줄: 검색 + 저장된 위치 ──
         LazyRow(
@@ -232,16 +238,15 @@ fun CarMapCard(
             modifier = Modifier
                 .padding(horizontal = 12.dp)
                 .fillMaxWidth()
-                .height(220.dp)
+                .weight(1f)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Concrete.BgScreen)
+                .background(Concrete.BgPanel)
         ) {
             if (hasContent) {
                 OsmCarMap(
                     car = carCoords,
                     me = myCoords,
                     pin = pin,
-                    dark = Concrete.palette == DarkPalette,
                     modifier = Modifier.fillMaxSize()
                 )
                 // 터치는 전부 이 투명 레이어가 받는다 — 세로 스크롤과 지도 드래그 충돌 방지
@@ -261,7 +266,7 @@ fun CarMapCard(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
                             .padding(10.dp)
-                            .background(Concrete.BgDeep.copy(alpha = 0.92f), RoundedCornerShape(20.dp))
+                            .background(Concrete.BgDeep.copy(alpha = 0.95f), RoundedCornerShape(20.dp))
                             .padding(horizontal = 12.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -281,7 +286,7 @@ fun CarMapCard(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
                             .padding(10.dp)
-                            .background(Concrete.BgDeep.copy(alpha = 0.92f), RoundedCornerShape(20.dp))
+                            .background(Concrete.BgDeep.copy(alpha = 0.95f), RoundedCornerShape(20.dp))
                             .padding(horizontal = 12.dp, vertical = 7.dp)
                     )
                 }
@@ -292,7 +297,7 @@ fun CarMapCard(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(10.dp)
-                        .background(Concrete.BgDeep.copy(alpha = 0.85f), RoundedCornerShape(20.dp))
+                        .background(Concrete.BgDeep.copy(alpha = 0.92f), RoundedCornerShape(20.dp))
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 )
             } else {
@@ -351,7 +356,7 @@ private fun LotChip(label: String, active: Boolean, onClick: () -> Unit) {
 /** 북쪽 기준 방위각(도)만큼 회전한 화살표 — 내 위치에서 차 방향 */
 @Composable
 private fun BearingArrow(bearingDeg: Double, modifier: Modifier = Modifier) {
-    val color = Concrete.Neon
+    val color = Concrete.TextMain
     androidx.compose.foundation.Canvas(modifier = modifier.rotate(bearingDeg.toFloat())) {
         val w = size.width
         val h = size.height
@@ -379,7 +384,6 @@ private fun OsmCarMap(
     car: Pair<Double, Double>?,
     me: Pair<Double, Double>?,
     pin: Pair<Double, Double>?,
-    dark: Boolean,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -408,17 +412,14 @@ private fun OsmCarMap(
         }
     }
 
-    val neon = Concrete.Neon.toArgb()
-    val faceColor = Concrete.BgDeep.toArgb()
-    val meColor = Concrete.TextMain.toArgb()
+    // 지도 위 색은 팔레트가 아니라 "지도에서 익숙한 색" (v5.2)
+    val routeColor = MAP_INK
+    val faceColor = android.graphics.Color.WHITE
 
     AndroidView(
         factory = { mapView },
         modifier = modifier,
         update = { map ->
-            map.overlayManager.tilesOverlay.setColorFilter(
-                if (dark) TilesOverlay.INVERT_COLORS else null
-            )
             map.overlays.clear()
 
             val density = map.resources.displayMetrics.density
@@ -430,7 +431,7 @@ private fun OsmCarMap(
                 map.overlays.add(
                     Polyline(map).apply {
                         setPoints(listOf(mePoint, carPoint))
-                        outlinePaint.color = neon
+                        outlinePaint.color = routeColor
                         outlinePaint.strokeWidth = 3f * density
                         outlinePaint.strokeCap = Paint.Cap.ROUND
                         outlinePaint.pathEffect =
@@ -444,7 +445,7 @@ private fun OsmCarMap(
                     Marker(map).apply {
                         position = mePoint
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                        icon = dotDrawable(map.context, 14, meColor, faceColor)
+                        icon = dotDrawable(map.context, 16, MAP_BLUE, faceColor)
                         setInfoWindow(null)
                     }
                 )
@@ -454,7 +455,7 @@ private fun OsmCarMap(
                     Marker(map).apply {
                         position = pinPoint
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                        icon = pinDrawable(map.context, 34, faceColor, neon)
+                        icon = pinDrawable(map.context, 34, faceColor, MAP_INK)
                         setInfoWindow(null)
                     }
                 )
@@ -464,7 +465,7 @@ private fun OsmCarMap(
                     Marker(map).apply {
                         position = carPoint
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                        icon = carMarkerDrawable(map.context, 40, faceColor, neon)
+                        icon = carMarkerDrawable(map.context, 42, MAP_INK, faceColor)
                         setInfoWindow(null)
                     }
                 )

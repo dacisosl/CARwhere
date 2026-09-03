@@ -30,19 +30,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.eottadwotji.data.ParkingLotProfile
 import com.eottadwotji.data.ParkingStore
+import com.eottadwotji.ui.components.FloorSign
 import com.eottadwotji.ui.components.LotEditModal
 import com.eottadwotji.ui.components.lotFloorsSummary
 import com.eottadwotji.ui.theme.AppType
 import com.eottadwotji.ui.theme.Concrete
+import com.eottadwotji.ui.theme.appCard
 
 /**
  * 위치 관리 페이지 (v5.0) — 하단 탭 두 번째.
  *
  * 등록된 주차장을 목록으로 보고, 탭하면 편집 모달(이름·층 구성·메모·좌표·삭제),
  * 우상단 "+ 추가"로 새 위치. 대시보드에서 하던 편집을 전부 여기로 옮겼다.
- * 지금 주차 중인 위치는 네온 테두리로 표시.
+ * 지금 주차 중인 위치는 그린 테두리 + "지금 여기" 배지. 지난번 층은 층 표지판으로 보여준다.
  */
 @Composable
 fun LocationsScreen() {
@@ -92,7 +95,7 @@ fun LocationsScreen() {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Concrete.BgDeep, RoundedCornerShape(16.dp))
+                    .appCard()
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -138,7 +141,7 @@ private fun LotRow(lot: ParkingLotProfile, active: Boolean, onClick: () -> Unit)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Concrete.BgDeep, RoundedCornerShape(14.dp))
+            .appCard(14.dp)
             .then(
                 if (active) Modifier.border(1.5.dp, Concrete.Neon, RoundedCornerShape(14.dp))
                 else Modifier
@@ -147,15 +150,19 @@ private fun LotRow(lot: ParkingLotProfile, active: Boolean, onClick: () -> Unit)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 좌표 등록 여부 점: 등록됨(네온) / 미등록(어둡게)
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .background(
-                    if (lot.latitude != null) Concrete.Neon else Concrete.Border,
-                    CircleShape
-                )
-        )
+        // 지난번 층이 있으면 그 층 표지판, 없으면 좌표 등록 여부 점
+        if (lot.lastFloor != null) {
+            FloorSign(floor = lot.lastFloor, fontSize = 15.sp)
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(
+                        if (lot.latitude != null) Concrete.Neon else Concrete.Border,
+                        CircleShape
+                    )
+            )
+        }
         Spacer(Modifier.size(12.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -176,7 +183,7 @@ private fun LotRow(lot: ParkingLotProfile, active: Boolean, onClick: () -> Unit)
             Text(
                 listOfNotNull(
                     lotFloorsSummary(lot.floors),
-                    if (lot.latitude != null) "위치 등록됨" else "위치 미등록",
+                    if (lot.latitude != null) "위치 등록됨" else "위치 미등록"
                     lot.lastFloor?.let { "지난번 $it" }
                 ).joinToString(" · "),
                 style = AppType.Hint,
