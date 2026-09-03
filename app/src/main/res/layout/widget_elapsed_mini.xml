@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1x1 위젯의 경과 시간 (v4.3): 가운데 정렬 소형. 규칙은 pill과 동일 —
+     match_parent + ellipsize=none + maxLines=1 + tnum으로 말줄임 없이 딱 맞게. -->
+<Chronometer xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_elapsed"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:ellipsize="none"
+    android:fontFamily="@font/chakra_petch_bold"
+    android:fontFeatureSettings="tnum"
+    android:gravity="center"
+    android:includeFontPadding="false"
+    android:maxLines="1"
+    android:textColor="#D3D1C7"
+    android:textSize="12sp"
+    android:textStyle="bold" />

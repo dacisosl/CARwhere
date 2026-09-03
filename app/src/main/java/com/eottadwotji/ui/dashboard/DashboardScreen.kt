@@ -51,10 +51,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -67,6 +69,7 @@ import com.eottadwotji.data.ParkingStore
 import com.eottadwotji.data.PhotoStore
 import com.eottadwotji.data.UpdateChecker
 import com.eottadwotji.detection.ParkingDetectionService
+import com.eottadwotji.ui.components.BrandWordmark
 import com.eottadwotji.ui.components.CircularGauge
 import com.eottadwotji.ui.components.LotEditModal
 import com.eottadwotji.ui.floorpicker.FloorPickerActivity
@@ -125,10 +128,7 @@ fun DashboardScreen() {
 
     val isParked = remember(refreshKey) { store.hasActiveParking() }
     val floor = remember(refreshKey) { store.currentFloor() }
-    val zone = remember(refreshKey) { store.currentZone() }
-    val memo = remember(refreshKey) { store.currentMemo() }
     val currentLot = remember(refreshKey) { store.currentLot() }
-    val address = remember(refreshKey) { store.approximateAddress() } // v3.9 대략적 GPS 주소
     val startedAt = remember(refreshKey) { store.parkingStartedAt() }
     val photoUri = remember(refreshKey) { store.photoUri }
     val carCoords = remember(refreshKey) { if (store.hasActiveParking()) store.coordinates() else null }
@@ -190,22 +190,22 @@ fun DashboardScreen() {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("어따뒀지", style = AppType.Brand, color = Concrete.TextMain)
+            BrandWordmark(fontSizeSp = 27f)
             Spacer(Modifier.weight(1f))
             DetectionBadge(detecting)
         }
-        // 마지막 차량 BT 신호 — 리시버가 실제로 깨어나는지 실기기에서 확인하는 진단 줄 (v4.2)
+        // 마지막 차량 BT 신호 — 리시버가 실제로 깨어나는지 확인하는 진단 줄.
+        // v4.3: 두 줄로 넘치던 문구를 한 줄에 들어가는 길이로 줄이고 10sp로 (maxLines=1)
         if (detecting) {
             Text(
                 if (lastCarEventAt > 0L)
-                    "마지막 차량 신호 · ${formatDateTime(lastCarEventAt)} " +
+                    "차량 신호 ${formatSignalTime(lastCarEventAt)} " +
                         if (lastCarEventConnected) "연결" else "끊김"
-                else "차량 신호 기록 없음 — 시동을 걸면 여기에 시각이 남아요",
-                style = AppType.Hint,
+                else "차량 신호 기록 없음",
+                style = AppType.Micro,
                 color = Concrete.TextDim,
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .padding(top = 4.dp)
+                maxLines = 1,
+                modifier = Modifier.align(Alignment.End)
             )
         }
 
@@ -256,38 +256,33 @@ fun DashboardScreen() {
                 .background(Concrete.BgDeep, RoundedCornerShape(16.dp))
                 .padding(18.dp)
         ) {
+            // v4.3: 엔진 버튼을 왼쪽 끝으로 붙이고 126dp로 확대, 내 차 배지는 오른쪽 끝
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 엔진 스타트 버튼: 누르면 기록 시트 (주차 중=다시 기록, 아니면=수동 기록)
                 CircularGauge(
                     floor = floor,
                     parked = isParked,
+                    size = 126.dp,
                     onPress = { openFloorPicker(context, manual = !isParked) }
                 )
-                // 내 차 — 앱 아이콘으로 고른 차종·색 그대로 (설정으로 이동)
+                // 내 차 — 실제 앱 아이콘을 그대로 박는다 (설정에서 차종·색을 고르면 그 아이콘)
                 MyCarBadge(
                     car = store.appIconCar,
                     color = store.appIconColor,
                     parked = isParked,
+                    size = 104.dp,
                     onPress = { context.startActivity(Intent(context, SettingsActivity::class.java)) }
                 )
             }
 
-            Spacer(Modifier.height(14.dp))
-
-            // 위치 한 줄: 위치명 > 역지오코딩 주소 > 폴백 · 구역 · 메모
-            if (isParked) {
-                val place = currentLot?.name ?: address?.let { "$it 근처" } ?: "주차 위치 저장됨"
-                val detail = listOfNotNull(zone, memo).joinToString(" · ")
-                Text(
-                    if (detail.isEmpty()) place else "$place · $detail",
-                    style = AppType.Body,
-                    color = Concrete.TextMain
-                )
-            } else {
+            // 주차 중일 때 장소 문구는 두지 않는다 (v4.3) —
+            // 바로 아래 지도 카드의 위치 칩과 지도가 같은 정보를 더 잘 보여준다.
+            if (!isParked) {
+                Spacer(Modifier.height(14.dp))
                 Text("지금 주차 중이 아니에요", style = AppType.Body, color = Concrete.TextSub)
                 Text(
                     if (detecting) "차에서 내리면 자동으로 물어볼게요"
@@ -313,10 +308,9 @@ fun DashboardScreen() {
                             cameraLauncher.launch(uri)
                         }
                     }
-                    // 경과 시간 — 트립미터처럼 디스플레이 폰트로 (+HH:MM)
+                    // 경과 시간만 크게 — 주차 시각 캡션은 뺐다 (v4.3)
                     ElapsedChip(
                         text = formatElapsedClock(startedAt),
-                        caption = "주차 ${formatTime(startedAt)}",
                         lit = true,
                         modifier = Modifier.weight(1f)
                     )
@@ -324,12 +318,7 @@ fun DashboardScreen() {
                     SmallConcreteButton("수동 기록", Modifier.weight(1f)) {
                         openFloorPicker(context, manual = true)
                     }
-                    ElapsedChip(
-                        text = "--:--",
-                        caption = "경과 시간",
-                        lit = false,
-                        modifier = Modifier.weight(1f)
-                    )
+                    ElapsedChip(text = "--:--", lit = false, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -481,26 +470,41 @@ private fun BannerRow(
 // ── ① 주차 카드 부품 ──────────────────────────────────────────
 
 /**
- * 내 차 배지 — 앱 아이콘에서 고른 차종·색 PNG를 엔진 버튼과 같은 크기의 원판에 얹는다.
- * 어댑티브 아이콘 전경은 108dp 캔버스 중 가운데 72dp만 콘텐츠라 1.45배로 키워 원에 채운다.
- * 아이콘을 안 골랐으면 기본 차 실루엣(형광). 링은 주차 중일 때만 점등.
+ * 내 차 배지 — 실제 앱 아이콘을 원판에 박는다 (v4.3).
+ *
+ * 설정에서 차종·색을 골랐으면 그 전경 에셋(ic_fg_*)을, 고르지 않았으면 런처에 깔린
+ * 앱 아이콘 자체(PackageManager)를 그린다. 어댑티브 아이콘은 108dp 캔버스 중 가운데
+ * 72dp만 콘텐츠라 1.48배로 키워 원을 채운다. 링은 주차 중일 때만 점등.
  */
 @Composable
 private fun MyCarBadge(
     car: String?,
     color: String?,
     parked: Boolean,
+    size: Dp,
     onPress: () -> Unit
 ) {
     val context = LocalContext.current
-    val resId = remember(car, color) {
-        if (car != null && color != null)
+    val iconBitmap = remember(car, color) {
+        val resId = if (car != null && color != null) {
             context.resources.getIdentifier("ic_fg_${car}_$color", "drawable", context.packageName)
-        else 0
+        } else {
+            0
+        }
+        val drawable = if (resId != 0) {
+            ContextCompat.getDrawable(context, resId)
+        } else {
+            // 런처에 실제로 깔린 앱 아이콘 (어댑티브 배경+전경 합성)
+            runCatching { context.packageManager.getApplicationIcon(context.packageName) }
+                .getOrNull()
+        }
+        drawable?.let {
+            runCatching { it.toBitmap(width = 288, height = 288) }.getOrNull()
+        }
     }
     Box(
         modifier = Modifier
-            .size(108.dp)
+            .size(size)
             .clip(CircleShape)
             .background(
                 Brush.radialGradient(
@@ -516,17 +520,17 @@ private fun MyCarBadge(
             .clickable(onClick = onPress),
         contentAlignment = Alignment.Center
     ) {
-        if (resId != 0) {
+        if (iconBitmap != null) {
             Image(
-                painter = painterResource(resId),
+                bitmap = iconBitmap.asImageBitmap(),
                 contentDescription = "내 차",
-                contentScale = ContentScale.Fit,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        scaleX = 1.45f
-                        scaleY = 1.45f
-                        alpha = if (parked) 1f else 0.55f
+                        scaleX = 1.48f
+                        scaleY = 1.48f
+                        alpha = if (parked) 1f else 0.6f
                     }
             )
         } else {
@@ -534,29 +538,27 @@ private fun MyCarBadge(
                 painter = painterResource(R.drawable.ic_car),
                 contentDescription = "내 차",
                 tint = if (parked) Concrete.Neon else Concrete.TextDim,
-                modifier = Modifier.size(46.dp)
+                modifier = Modifier.size(size * 0.42f)
             )
         }
     }
 }
 
-/** 경과 시간 칩 — 계기판 트립미터 느낌 (디스플레이 폰트, 큰 숫자 + 작은 캡션) */
+/** 경과 시간 칩 — 트립미터 표기 하나만 크게 (v4.3: 주차 시각 캡션 제거) */
 @Composable
-private fun ElapsedChip(text: String, caption: String, lit: Boolean, modifier: Modifier = Modifier) {
-    Column(
+private fun ElapsedChip(text: String, lit: Boolean, modifier: Modifier = Modifier) {
+    Box(
         modifier = modifier
-            .height(44.dp)
-            .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .height(52.dp)
+            .background(Concrete.BgPanel, RoundedCornerShape(8.dp)),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text,
-            style = AppType.FloorButton.copy(fontFamily = com.eottadwotji.ui.theme.DisplayFont),
-            color = if (lit) Concrete.TextMain else Concrete.TextDim
+            style = AppType.GaugeFloor.copy(fontSize = 25.sp),
+            color = if (lit) Concrete.TextMain else Concrete.TextDim,
+            maxLines = 1
         )
-        Text(caption, style = AppType.LabelCaps.copy(letterSpacing = 0.5.sp), color = Concrete.TextDim)
     }
 }
 
@@ -579,7 +581,7 @@ private fun RecentCard(recent: List<ParkingRecord>) {
                 .clickable { recentExpanded = !recentExpanded },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("최근 주차", style = AppType.SectionLabel, color = Concrete.TextDim)
+            Text("최근 주차", style = AppType.SectionLabel, color = Concrete.TextSub)
             Spacer(Modifier.weight(1f))
             Text(if (recentExpanded) "▴" else "▾", style = AppType.BodySmall, color = Concrete.TextDim)
         }
@@ -686,9 +688,7 @@ private fun SettingsCard(
             .padding(horizontal = 18.dp, vertical = 14.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("설정", style = AppType.SectionLabel, color = Concrete.TextDim)
-            Spacer(Modifier.size(8.dp))
-            Text("즐겨찾기", style = AppType.SectionLabel, color = Concrete.TextDim.copy(alpha = 0.7f))
+            Text("설정", style = AppType.SectionLabel, color = Concrete.TextSub)
             Spacer(Modifier.weight(1f))
             Text(
                 "모든 설정 →",
@@ -861,7 +861,7 @@ private fun SmallConcreteButton(
 ) {
     Box(
         modifier = modifier
-            .height(44.dp)
+            .height(52.dp)
             .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
@@ -899,11 +899,9 @@ private fun PhotoDialog(uriString: String, onRetake: () -> Unit, onDismiss: () -
     }
 }
 
-private fun formatTime(timestampMs: Long): String =
-    SimpleDateFormat("a h:mm", Locale.KOREAN).format(Date(timestampMs))
-
-private fun formatDateTime(timestampMs: Long): String =
-    SimpleDateFormat("M/d a h:mm", Locale.KOREAN).format(Date(timestampMs))
+/** 진단 줄용 짧은 표기 "9/3 16:54" — 한 줄에 들어가야 한다 (v4.3) */
+private fun formatSignalTime(timestampMs: Long): String =
+    SimpleDateFormat("M/d H:mm", Locale.KOREAN).format(Date(timestampMs))
 
 private fun formatDate(timestampMs: Long): String =
     SimpleDateFormat("M/d", Locale.KOREAN).format(Date(timestampMs))

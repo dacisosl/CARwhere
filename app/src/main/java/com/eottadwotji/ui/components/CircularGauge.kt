@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.eottadwotji.ui.theme.AppType
 import com.eottadwotji.ui.theme.Concrete
 import kotlin.math.cos
@@ -96,15 +97,16 @@ fun CircularGauge(
                 center = center
             )
         }
+        // 글자 크기는 다이얼 지름에 비례 — 버튼을 키우면 숫자도 같이 커진다 (v4.3)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = if (parked) (floor ?: "P") else "—",
-                style = AppType.GaugeFloor,
+                style = AppType.GaugeFloor.copy(fontSize = (size.value * 0.24f).sp),
                 color = if (parked) Concrete.Neon else Concrete.TextDim
             )
             Text(
                 text = if (parked) "PARKED" else "EMPTY",
-                style = AppType.LabelCaps,
+                style = AppType.LabelCaps.copy(fontSize = (size.value * 0.083f).sp),
                 color = if (parked) Concrete.NeonLight.copy(alpha = 0.8f) else Concrete.TextDim
             )
         }

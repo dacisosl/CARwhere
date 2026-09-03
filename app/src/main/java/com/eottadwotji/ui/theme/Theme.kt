@@ -128,7 +128,13 @@ object AppType {
     val Body = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Normal)
     val BodySmall = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal)
     val Hint = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal)
-    val SectionLabel = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    /** 카드 섹션 라벨 — v4.3에서 11sp→12sp, 호출부는 TextSub로 (너무 안 보였다) */
+    val SectionLabel = TextStyle(
+        fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp
+    )
+
+    /** 한 줄 진단·보조 문구 (헤더 신호 표시 등) */
+    val Micro = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Normal)
 }
 
 @Composable

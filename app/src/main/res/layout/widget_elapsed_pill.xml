@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 2x1 위젯의 경과 시간 (v4.3): 왼쪽 정렬, 카드 폭을 다 쓴다.
+     match_parent이 핵심 — wrap_content으로 두면 Glance가 폭 0에 가깝게 측정해
+     "40:52:…"처럼 말줄임이 생긴다. ellipsize=none + maxLines=1로 잘림 자체를 막고,
+     tnum(고정폭 숫자)으로 초가 넘어가도 글자가 흔들리지 않게 한다. -->
+<Chronometer xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_elapsed"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:ellipsize="none"
+    android:fontFamily="@font/chakra_petch_bold"
+    android:fontFeatureSettings="tnum"
+    android:gravity="start|center_vertical"
+    android:includeFontPadding="false"
+    android:maxLines="1"
+    android:textColor="#F1EFE9"
+    android:textSize="24sp"
+    android:textStyle="bold" />

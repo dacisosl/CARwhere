@@ -97,7 +97,7 @@ fun CarMapCard(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp)
         ) {
             item {
-                Text("위치", style = AppType.SectionLabel, color = Concrete.TextDim)
+                Text("위치", style = AppType.SectionLabel, color = Concrete.TextSub)
             }
             items(lots, key = { it.id }) { lot ->
                 LotChip(
