@@ -2,8 +2,8 @@
 <resources>
     <!-- API 31+: 실사 아이콘 아트가 주차칸에 안착하는 스플래시 (v3.5) -->
     <style name="Theme.Eottadwotji" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#1E1E1C</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowSplashScreenBackground">#141412</item>
         <!-- v3.9.2: 시스템 스플래시는 첫 프레임 정지컷만 — 연출은 인앱 CinematicSplash가
              로딩시간과 무관하게 항상 온전히 재생 (시스템 애니메이션은 로딩 끝나면 잘림) -->

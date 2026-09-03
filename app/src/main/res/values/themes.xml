@@ -2,8 +2,8 @@
 <resources>
     <!-- v2: edge-to-edge — 시스템 바 패딩은 각 화면의 systemBarsPadding이 담당 -->
     <style name="Theme.Eottadwotji" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#1E1E1C</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
     <!-- 바텀시트 팝업용: 다른 앱/대시보드 위에 투명하게 떠서 하단 1/3만 덮는다 -->

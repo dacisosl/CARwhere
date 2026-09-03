@@ -59,11 +59,13 @@ import kotlinx.coroutines.launch
  * 초 단위 흐름은 RemoteViews Chronometer가 런처 프로세스에서 그리므로 앱은 깨어나지 않는다.
  */
 
-private val Neon = Color(0xFFAEEA00)
-private val BgCard = Color(0xFF1E1E1C)   // 앱 대시보드와 동일한 카드 톤
-private val TextMain = Color(0xFFF1EFE9)
-private val TextBody = Color(0xFFD3D1C7)
-private val TextDim = Color(0xFF888780)
+// v5 팔레트 — 화이트 카드 위 잉크 글자, 층수는 딥 파인 그린, 경과 시간 숫자는 머스크 버건디
+private val Neon = Color(0xFF2F6B4F)      // 시그니처 (층수)
+private val Accent = Color(0xFF9E4A5C)    // 포인트 (숫자)
+private val BgCard = Color(0xFFFFFFFF)
+private val TextMain = Color(0xFF17191D)
+private val TextBody = Color(0xFF2F333A)
+private val TextDim = Color(0xFF6B7380)
 
 /**
  * Chronometer로 표시할 수 있는 상한 100시간.
@@ -129,7 +131,7 @@ private fun PillContent(parked: Boolean, floor: String?, startedAtMs: Long, lotN
                 ElapsedTime(
                     startedAtMs = startedAtMs,
                     sizeSp = 26f,
-                    color = TextMain,
+                    color = Accent,
                     layoutRes = R.layout.widget_elapsed_pill,
                     modifier = GlanceModifier.fillMaxWidth().height(34.dp)
                 )
@@ -218,7 +220,7 @@ private fun GaugeContent(parked: Boolean, floor: String?, startedAtMs: Long) {
                 ElapsedTime(
                     startedAtMs = startedAtMs,
                     sizeSp = 12f,
-                    color = TextBody,
+                    color = Accent,
                     layoutRes = R.layout.widget_elapsed_mini,
                     modifier = GlanceModifier.fillMaxWidth().height(17.dp)
                 )

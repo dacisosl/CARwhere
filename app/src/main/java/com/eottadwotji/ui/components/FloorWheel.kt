@@ -58,11 +58,11 @@ import kotlin.math.abs
  *  [        N층으로 저장       ]
  *
  * 드래그로 가운데 창에 층을 맞추고 저장 버튼으로 확정. 스냅마다 진동.
- * 지상층은 앰버(주광), 지하층은 네온 그린 계열.
+ * 지상층은 포인트 버건디, 지하층은 시그니처 그린 (v5 팔레트).
  */
 
 /** 지상층 강조색 — 주광 앰버 (지하 네온과 대비) */
-private val GroundAmber = Color(0xFFFFC24B)
+// v5: 지상 = 포인트 버건디(Concrete.Accent), 지하 = 시그니처 그린(Concrete.Neon)
 
 @Composable
 fun FloorWheel(
@@ -141,7 +141,7 @@ fun FloorWheel(
                     itemsIndexed(floors) { index, floor ->
                         val isCenter = index == centerIndex
                         val basement = ParkingLotProfile.isBasement(floor)
-                        val tone = if (basement) Concrete.Neon else GroundAmber
+                        val tone = if (basement) Concrete.Neon else Concrete.Accent
                         val textColor = when {
                             !enabled && isCenter -> Concrete.NeonDeep
                             isCenter -> tone

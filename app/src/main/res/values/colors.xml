@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#1E1E1C</color>
-    <!-- 위젯 (Glance)용 팔레트 -->
-    <color name="neon">#AEEA00</color>
-    <color name="neon_deep">#1F3D00</color>
-    <color name="bg_card">#2C2C2A</color>
-    <color name="bg_panel">#444441</color>
-    <color name="text_body">#D3D1C7</color>
-    <color name="text_dim">#888780</color>
+    <!-- v5 팔레트: 화이트 · 딥 파인 그린 · 머스크 버건디 -->
+    <color name="neon">#2F6B4F</color>
+    <color name="neon_deep">#FFFFFF</color>
+    <color name="accent">#9E4A5C</color>
+    <color name="bg_card">#FFFFFF</color>
+    <color name="bg_panel">#ECEFEC</color>
+    <color name="text_body">#2F333A</color>
+    <color name="text_dim">#6B7380</color>
 </resources>

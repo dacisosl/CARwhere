@@ -63,9 +63,9 @@ object SplashGate {
 private const val BRAND = "어따뒀지"
 private const val TAGLINE = "기록은 3초 · 확인은 0초"
 
-/** 네온관 색: 넓은 헤일로는 라임, 코어는 백열(살짝 라임 기운) */
-private const val TUBE_RGB = 0xAEEA00
-private const val CORE_RGB = 0xF4FFD1
+/** 네온관 색 (v5 시그니처 = 딥 파인 그린): 어두운 영상 위라 밝힌 파인 그린 관 + 연녹 백열 코어 */
+private const val TUBE_RGB = 0x4C9A73
+private const val CORE_RGB = 0xE6F6EC
 
 // 연출 타임라인 (ms, 영상 재생 시작 기준) — 영상 길이 4.3초 안에 끝난다
 private const val RULE_START = 2_480L
@@ -251,7 +251,7 @@ private fun NeonWordmark(elapsedMs: Long, modifier: Modifier) {
         if (rule > 0f) {
             val half = (wordWidth / 2f) * rule
             drawLine(
-                color = Color(0xFFAEEA00).copy(alpha = 0.45f * rule),
+                color = Color(0xFF4C9A73).copy(alpha = 0.5f * rule),
                 start = Offset(centerX - half, ruleY),
                 end = Offset(centerX + half, ruleY),
                 strokeWidth = 1.dp.toPx(),

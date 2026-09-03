@@ -82,9 +82,9 @@ class ParkingStore(context: Context) {
         get() = prefs.getString(KEY_APP_ICON_COLOR, null)
         set(value) = prefs.edit().putString(KEY_APP_ICON_COLOR, value).apply()
 
-    /** v3.3: 테마 모드 — THEME_SYSTEM / THEME_DARK / THEME_LIGHT */
+    /** 테마 모드 — THEME_SYSTEM / THEME_DARK / THEME_LIGHT. v5: 기본은 라이트(화이트 바탕이 정체성) */
     var themeMode: String
-        get() = prefs.getString(KEY_THEME_MODE, THEME_SYSTEM)!!
+        get() = prefs.getString(KEY_THEME_MODE, THEME_LIGHT)!!
         set(value) = prefs.edit().putString(KEY_THEME_MODE, value).apply()
 
     /** v3.7: 층/메모 저장 후 "이렇게 등록했어요" 확인 카드를 띄울지 (끄면 바로 등록 + 완료 팝업) */

@@ -42,8 +42,8 @@ fun BrandWordmark(
 
     val light = Concrete.palette == LightPalette
     val neon = Concrete.Neon
-    // 다크: 관 안쪽이 하얗게 타는 백열 코어 / 라이트: 본문색 코어 (묻히지 않게)
-    val core = if (light) Concrete.TextMain else androidx.compose.ui.graphics.Color(0xFFF4FFD1)
+    // 시그니처 = 딥 파인 그린. 라이트: 그린 글자 + 옅은 그린 헤일로 / 다크: 밝은 그린 관 + 연녹 코어
+    val core = if (light) Concrete.Neon else androidx.compose.ui.graphics.Color(0xFFE6F6EC)
 
     val fontPx = with(density) { fontSizeSp.sp.toPx() }
     val trackingPx = with(density) { 2.5.dp.toPx() }
@@ -65,16 +65,16 @@ fun BrandWordmark(
             var x = startX
             glyphs.forEachIndexed { index, glyph ->
                 // 1겹: 넓은 라임 헤일로
-                paint.color = neon.copy(alpha = if (light) 0.35f else 0.92f).toArgb()
+                paint.color = neon.copy(alpha = if (light) 0.55f else 0.92f).toArgb()
                 paint.setShadowLayer(
-                    glowPx, 0f, 0f, neon.copy(alpha = if (light) 0.30f else 0.75f).toArgb()
+                    glowPx, 0f, 0f, neon.copy(alpha = if (light) 0.22f else 0.75f).toArgb()
                 )
                 native.drawText(glyph, x, baseline, paint)
 
                 // 2겹: 코어
                 paint.color = core.toArgb()
                 paint.setShadowLayer(
-                    glowPx * 0.32f, 0f, 0f, core.copy(alpha = 0.8f).toArgb()
+                    glowPx * 0.32f, 0f, 0f, core.copy(alpha = if (light) 0.25f else 0.8f).toArgb()
                 )
                 native.drawText(glyph, x, baseline, paint)
 
@@ -86,7 +86,7 @@ fun BrandWordmark(
         // 헤어라인 — 단어 폭에 딱 맞는 네온 밑선
         val ruleY = baseline + fontPx * 0.24f
         drawLine(
-            color = neon.copy(alpha = if (light) 0.55f else 0.45f),
+            color = neon.copy(alpha = if (light) 0.9f else 0.45f),
             start = Offset(startX, ruleY),
             end = Offset(startX + wordPx, ruleY),
             strokeWidth = with(density) { 1.5.dp.toPx() },

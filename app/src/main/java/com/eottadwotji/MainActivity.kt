@@ -13,7 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.eottadwotji.data.ParkingStore
 import com.eottadwotji.detection.ParkingDetectionService
-import com.eottadwotji.ui.dashboard.DashboardScreen
+import com.eottadwotji.ui.main.MainShell
 import com.eottadwotji.ui.onboarding.OnboardingScreen
 import com.eottadwotji.ui.theme.EottadwotjiTheme
 
@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
                         com.eottadwotji.ui.splash.SplashGate.shown = true
                         showSplash = false
                     })
-                    onboardingDone -> DashboardScreen()
+                    onboardingDone -> MainShell() // v5.0: 홈 / 위치관리 / 설정 하단 탭
                     else -> OnboardingScreen(onComplete = {
                         onboardingDone = true
                         startDetectionIfReady()

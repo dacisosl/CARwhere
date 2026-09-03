@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -57,7 +56,7 @@ fun CircularGauge(
             val bezelR = outerR - 1.5.dp.toPx()
             drawCircle(
                 brush = Brush.linearGradient(
-                    colors = listOf(Color(0xFF575651), Color(0xFF2A2A28)),
+                    colors = listOf(Concrete.Border, Concrete.Border.copy(alpha = 0.55f)),
                     start = Offset(center.x, center.y - bezelR),
                     end = Offset(center.x, center.y + bezelR)
                 ),
@@ -89,7 +88,7 @@ fun CircularGauge(
             val faceR = outerR - 14.dp.toPx()
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF373733), Color(0xFF1F1F1D)),
+                    colors = listOf(Concrete.BgScreen, Concrete.BgPanel),
                     center = Offset(center.x, center.y - faceR * 0.35f),
                     radius = faceR * 1.6f
                 ),

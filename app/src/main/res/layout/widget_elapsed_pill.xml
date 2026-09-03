@@ -13,6 +13,6 @@
     android:gravity="start|center_vertical"
     android:includeFontPadding="false"
     android:maxLines="1"
-    android:textColor="#F1EFE9"
+    android:textColor="#9E4A5C"
     android:textSize="24sp"
     android:textStyle="bold" />

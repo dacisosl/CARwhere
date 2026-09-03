@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -68,8 +69,9 @@ import com.google.android.gms.location.LocationServices
 import java.util.UUID
 
 /**
- * 설정 v3 — 항목 순서: 위치 / 바텀시트 / 알림 / 감지 / 기타.
- * 위치는 탭하면 모달창으로 편집 (이름·층 구성·위치별 바텀시트·좌표).
+ * 설정 — 항목 순서: 바텀시트 / 알림 / 감지 / 앱 아이콘 / 기타 / 배터리 안내.
+ * v5.0: 하단 탭 "설정"에 임베드된다 (SettingsScreen(embedded = true)).
+ * 이 액티비티는 알림·다른 화면에서 직접 열 때의 진입점으로 남겨둔다.
  */
 class SettingsActivity : ComponentActivity() {
 
@@ -83,8 +85,12 @@ class SettingsActivity : ComponentActivity() {
     }
 }
 
+/**
+ * @param onClose 뒤로 버튼 동작. null이면 뒤로 버튼을 그리지 않는다 (탭 임베드).
+ * @param embedded 탭 안에 있으면 하단은 탭바가 맡으므로 상단 패딩만 준다.
+ */
 @Composable
-private fun SettingsScreen(onClose: () -> Unit) {
+fun SettingsScreen(onClose: (() -> Unit)? = null, embedded: Boolean = false) {
     val context = LocalContext.current
     val store = remember { ParkingStore(context) }
     var refresh by remember { mutableIntStateOf(0) }
@@ -95,7 +101,6 @@ private fun SettingsScreen(onClose: () -> Unit) {
     val overlayGranted = remember(refresh) { Settings.canDrawOverlays(context) }
     val themeMode = remember(refresh) { store.themeMode }
     val confirmCard = remember(refresh) { store.confirmBeforeDone }
-    val showRecent = remember(refresh) { store.showRecentCard }
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
 
     var activeSheet by remember { mutableStateOf<String?>(null) }
@@ -107,16 +112,18 @@ private fun SettingsScreen(onClose: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Concrete.BgScreen)
-            .systemBarsPadding()
+            .then(if (embedded) Modifier.statusBarsPadding() else Modifier.systemBarsPadding())
             .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로",
-                    tint = Concrete.TextSub
-                )
+            if (onClose != null) {
+                IconButton(onClick = onClose) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "뒤로",
+                        tint = Concrete.TextSub
+                    )
+                }
             }
             Text("설정", style = AppType.Title, color = Concrete.TextMain)
         }
@@ -143,13 +150,6 @@ private fun SettingsScreen(onClose: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                "★를 누르면 대시보드 빠른 설정에 올라가요",
-                style = AppType.Hint,
-                color = Concrete.TextDim,
-                modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
-            )
-
             AccordionSection("바텀시트", "바텀시트" in openSections, { toggleSection("바텀시트") }) {
                 SettingRow(
                     "기본 동작", sheetModeLabel(sheetMode),
@@ -232,9 +232,10 @@ private fun SettingsScreen(onClose: () -> Unit) {
                     star = { StarToggle(ParkingStore.STAR_THEME in starredSet) { toggleStar(ParkingStore.STAR_THEME) } }
                 ) { activeSheet = "theme" }
                 UpdateCheckRow()
-                SwitchRow("대시보드 최근 주차 카드", showRecent) {
-                    store.showRecentCard = it
-                    refresh++
+                SettingRow("주차 기록", "전체 보기") {
+                    context.startActivity(
+                        Intent(context, com.eottadwotji.ui.history.HistoryActivity::class.java)
+                    )
                 }
             }
 

@@ -72,9 +72,7 @@ fun FloorSelector(
     }
 }
 
-/** 지상 층 선택 색 — 주광 앰버 (지하 네온과 위계 구분) */
-private val GroundAmber = androidx.compose.ui.graphics.Color(0xFFFFC24B)
-private val GroundAmberDeep = androidx.compose.ui.graphics.Color(0xFF3D2C00)
+// v5: 지상 선택 = 포인트 버건디(Concrete.Accent) 위 흰 글자, 지하 = 시그니처 그린
 
 @Composable
 private fun ColumnHeader(label: String) {
@@ -94,7 +92,7 @@ private fun FloorChip(label: String, selected: Boolean, ground: Boolean, onClick
             .height(40.dp)
             .background(
                 when {
-                    selected && ground -> GroundAmber
+                    selected && ground -> Concrete.Accent
                     selected -> Concrete.Neon
                     else -> Concrete.BgPanel
                 },
@@ -112,7 +110,7 @@ private fun FloorChip(label: String, selected: Boolean, ground: Boolean, onClick
             label,
             style = AppType.BodySmall,
             color = when {
-                selected && ground -> GroundAmberDeep
+                selected && ground -> Concrete.NeonDeep
                 selected -> Concrete.NeonDeep
                 label == "+" -> Concrete.TextDim
                 else -> Concrete.TextBody
