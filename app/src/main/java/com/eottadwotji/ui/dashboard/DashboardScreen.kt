@@ -244,10 +244,12 @@ fun DashboardScreen() {
             modifier = Modifier.fillMaxWidth().height(148.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // 폭 배분 0.62 : 1 — 층수는 글자뿐이라 좁아도 되고, 사진은 가로가 넓어야
+            // 주차 구획(천장 조명·구획선)이 잘리지 않는다 (사진 비율 약 1.23:1)
             FloorTile(
                 floor = floor,
                 parked = isParked,
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier.weight(0.62f).fillMaxHeight(),
                 onPress = { openFloorPicker(context, manual = !isParked) }
             )
             PhotoTile(
@@ -428,11 +430,14 @@ private fun FloorTile(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val label = if (parked) (floor ?: "P") else "—"
             Text(
-                if (parked) (floor ?: "P") else "—",
-                style = AppType.Sign.copy(fontSize = 68.sp),
+                label,
+                // "B12"처럼 세 글자면 줄여서 좁은 칸을 넘지 않게
+                style = AppType.Sign.copy(fontSize = if (label.length >= 3) 46.sp else 62.sp),
                 color = if (parked) Concrete.Neon else Concrete.TextDim,
-                maxLines = 1
+                maxLines = 1,
+                softWrap = false
             )
             Text(
                 if (parked) "탭해서 다시 기록" else "탭해서 수동 기록",
