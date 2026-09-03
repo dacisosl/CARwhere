@@ -87,11 +87,6 @@ class ParkingStore(context: Context) {
         get() = prefs.getString(KEY_THEME_MODE, THEME_LIGHT)!!
         set(value) = prefs.edit().putString(KEY_THEME_MODE, value).apply()
 
-    /** v3.7: 층/메모 저장 후 "이렇게 등록했어요" 확인 카드를 띄울지 (끄면 바로 등록 + 완료 팝업) */
-    var confirmBeforeDone: Boolean
-        get() = prefs.getBoolean(KEY_CONFIRM_CARD, true)
-        set(value) = prefs.edit().putBoolean(KEY_CONFIRM_CARD, value).apply()
-
     /** v2: 기압 자동감지 베타 — 추정 층을 미리 선택만, 확정은 항상 사람 탭 (절대 규칙 5) */
     var pressureAutoDetect: Boolean
         get() = prefs.getBoolean(KEY_PRESSURE_AUTO, false)
@@ -337,7 +332,6 @@ class ParkingStore(context: Context) {
         private const val KEY_APP_ICON_CAR = "app_icon_car"
         private const val KEY_APP_ICON_COLOR = "app_icon_color"
         private const val KEY_THEME_MODE = "theme_mode"
-        private const val KEY_CONFIRM_CARD = "confirm_card"
         private const val KEY_LAST_CAR_EVENT_AT = "last_car_event_at"
         private const val KEY_LAST_CAR_EVENT_CONNECTED = "last_car_event_connected"
 

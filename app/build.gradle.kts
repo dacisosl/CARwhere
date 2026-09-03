@@ -7,7 +7,8 @@ plugins {
 
 android {
     namespace = "com.eottadwotji"
-    compileSdk = 35
+    // v5.4: 36 — Android 16 Live Updates(승격 알림) API. targetSdk는 35 유지(동작 변경 회피)
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.eottadwotji"
@@ -59,7 +60,7 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2025.05.01")
     implementation(composeBom)
 
-    implementation("androidx.core:core-ktx:1.16.0")
+    implementation("androidx.core:core-ktx:1.17.0") // setRequestPromotedOngoing/setShortCriticalText
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.0")
     implementation("androidx.compose.ui:ui")

@@ -103,7 +103,9 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, embedded: Boolean = false) {
     val myCarName = remember(refresh) { store.myCarName }
     val overlayGranted = remember(refresh) { Settings.canDrawOverlays(context) }
     val themeMode = remember(refresh) { store.themeMode }
-    val confirmCard = remember(refresh) { store.confirmBeforeDone }
+    val liveUpdates = remember(refresh) {
+        com.eottadwotji.detection.ParkingNotification.liveUpdatesState(context)
+    }
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
 
     var activeSheet by remember { mutableStateOf<String?>(null) }
@@ -147,10 +149,6 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, embedded: Boolean = false) {
         ) {
             AccordionSection("바텀시트", "바텀시트" in openSections, { toggleSection("바텀시트") }) {
                 SettingRow("기본 동작", sheetModeLabel(sheetMode)) { activeSheet = "sheet_mode" }
-                SettingRow(
-                    "등록 확인",
-                    if (confirmCard) "확인 카드" else "바로 등록"
-                ) { activeSheet = "confirm_card" }
                 Text(
                     "위치마다 다르게 하려면 위치관리 탭에서 그 위치를 열어 바꿔주세요",
                     style = AppType.Hint,
@@ -160,6 +158,18 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, embedded: Boolean = false) {
             }
 
             AccordionSection("알림", "알림" in openSections, { toggleSection("알림") }) {
+                // v5.4: 잠금화면 상태바 칩(Android 16 Live Updates / One UI Now Bar)
+                SettingRow(
+                    "잠금화면 Now Bar",
+                    when (liveUpdates) {
+                        com.eottadwotji.detection.ParkingNotification.LiveUpdatesState.READY -> "사용 중"
+                        com.eottadwotji.detection.ParkingNotification.LiveUpdatesState.DISABLED -> "꺼짐 — 탭해서 켜기"
+                        com.eottadwotji.detection.ParkingNotification.LiveUpdatesState.UNSUPPORTED -> "Android 16 필요"
+                    }
+                ) {
+                    com.eottadwotji.detection.ParkingNotification.openLiveUpdatesSettings(context)
+                    refresh++
+                }
                 SettingRow("앱 알림 설정 열기", "카테고리·중요도 확인") {
                     runCatching {
                         context.startActivity(
@@ -270,16 +280,6 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, embedded: Boolean = false) {
                 store.themeMode = it
                 com.eottadwotji.ui.theme.Concrete.apply(it, systemDark) // 전 화면 즉시 반영
             },
-            onDismiss = { activeSheet = null; refresh++ }
-        )
-        "confirm_card" -> OptionSheet(
-            title = "등록 확인",
-            options = listOf(
-                "confirm" to "확인 카드 띄우기 — 맞아요/수정하기",
-                "instant" to "바로 등록 — 완료 팝업만"
-            ),
-            current = if (confirmCard) "confirm" else "instant",
-            onSelect = { store.confirmBeforeDone = it == "confirm" },
             onDismiss = { activeSheet = null; refresh++ }
         )
         "car" -> CarPickerSheet(store, onDismiss = { activeSheet = null; refresh++ })

@@ -22,7 +22,7 @@ import com.eottadwotji.ui.floorpicker.FloorPickerActivity
  *
  * 상시 알림은 딱 1개 — SERVICE_NOTIFICATION_ID 하나를 상태에 따라 교체한다.
  *   - 대기: "감지 대기" 채널 (IMPORTANCE_MIN → 상태바 아이콘 없음, 알림창 최소화 영역)
- *   - 주차: "주차 위치 표시" 채널 (P·B3 캡슐 아이콘 + colorized 형광그린 배경)
+ *   - 주차: "주차 위치 표시" 채널 (P·B3 캡슐 아이콘, Android 16에서는 Live Updates 칩 + 잠금화면 Now Bar)
  * 이전처럼 알림 2개가 공존하면 시스템이 자동 그룹핑해서 상태바 캡슐이
  * 그룹 아이콘 뒤로 숨는다 — "어떨 때는 뜨고 어떨 때는 안 뜨는" 원인.
  *
@@ -45,7 +45,9 @@ object ParkingNotification {
 
     private const val CHANNEL_IDLE = "idle_v2"     // IMPORTANCE_MIN: 상태바에 안 보임
     private const val CHANNEL_POPUP = "popup_v2"   // IMPORTANCE_HIGH: 헤드업 팝업
-    private const val CHANNEL_PARKED = "parked_v2" // IMPORTANCE_LOW: 조용히 상시 표시
+    // v5.4: v3 — DEFAULT 중요도(무음)로 올려 Live Updates 승격 조건을 맞추고 잠금화면 공개.
+    // 채널 설정은 생성 후 못 바꾸므로 id를 올리고 v2는 삭제한다
+    private const val CHANNEL_PARKED = "parked_v3"
 
     private const val FLOOR_PICKER_TIMEOUT_MS = 10_000L
 
@@ -53,8 +55,8 @@ object ParkingNotification {
     private val NEON = com.eottadwotji.ui.theme.FloorTone.UNKNOWN_ARGB
 
     /**
-     * 층 이름 → 표지판 색. v5.2부터 공용 FloorTone에 위임한다 —
-     * 상태바 아이콘·알림 배경·홈 층수 타일·기록 카드 층 박스가 모두 같은 색을 쓴다.
+     * 층 이름 → 표지판 색. 공용 FloorTone에 위임 — 상태바 아이콘·알림·Live Updates 칩이 같은 색.
+     * (앱 화면의 층수는 v5.3부터 시그니처 그린 하나라 이 색을 쓰지 않는다)
      */
     internal fun floorColor(floor: String?): Int =
         com.eottadwotji.ui.theme.FloorTone.argb(floor)
@@ -62,7 +64,7 @@ object ParkingNotification {
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
         // 예전 채널 삭제 — 사용자가 바꿨거나 구버전에서 잘못 만들어진 중요도를 리셋
-        listOf("idle", "popup", "parked").forEach { nm.deleteNotificationChannel(it) }
+        listOf("idle", "popup", "parked", "parked_v2").forEach { nm.deleteNotificationChannel(it) }
 
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_IDLE, "감지 대기", NotificationManager.IMPORTANCE_MIN)
@@ -73,9 +75,44 @@ object ParkingNotification {
                 .apply { setShowBadge(false) }
         )
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_PARKED, "주차 위치 표시", NotificationManager.IMPORTANCE_LOW)
-                .apply { setShowBadge(false) }
+            NotificationChannel(CHANNEL_PARKED, "주차 위치 표시", NotificationManager.IMPORTANCE_DEFAULT)
+                .apply {
+                    setShowBadge(false)
+                    // DEFAULT 중요도지만 소리·진동은 없다 — 승격(Live Updates) 조건을 위해 올린 것뿐
+                    setSound(null, null)
+                    enableVibration(false)
+                    enableLights(false)
+                    // 잠금화면에서 층·경과시간을 가리지 않는다
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                }
         )
+    }
+
+    // ── Live Updates (Android 16) ────────────────────────────────
+
+    /** 잠금화면 상태바 칩(Live Updates / One UI Now Bar)을 쓸 수 있는 상태 */
+    enum class LiveUpdatesState {
+        /** Android 15 이하 — 일반 상시 알림으로만 표시 */
+        UNSUPPORTED,
+        /** Android 16이지만 사용자가 앱 알림 설정에서 "실시간 업데이트"를 꺼 둠 */
+        DISABLED,
+        /** 승격 가능 — 상태바 칩 + 잠금화면 Now Bar */
+        READY
+    }
+
+    fun liveUpdatesState(context: Context): LiveUpdatesState {
+        if (android.os.Build.VERSION.SDK_INT < 36) return LiveUpdatesState.UNSUPPORTED
+        val nm = context.getSystemService(NotificationManager::class.java)
+        val allowed = runCatching { nm.canPostPromotedNotifications() }.getOrDefault(true)
+        return if (allowed) LiveUpdatesState.READY else LiveUpdatesState.DISABLED
+    }
+
+    /** 앱 알림 설정 화면 — 여기서 "실시간 업데이트" 토글을 켠다 */
+    fun openLiveUpdatesSettings(context: Context) {
+        val intent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
     }
 
     /**
@@ -150,7 +187,13 @@ object ParkingNotification {
      * 왜 서비스(FGS) 알림이 아닌가: FGS 알림은 서비스가 죽으면 시스템이 함께
      * 지운다 — 삼성 절전이 서비스를 죽이는 순간 캡슐이 사라지던 원인.
      * 일반 알림은 시스템 소유라 앱 프로세스가 죽어도 상태바에 남는다.
-     * ID(2)는 항상 parked_v2 채널 고정이라 채널 갇힘 문제도 없다.
+     * ID(2)는 항상 parked_v3 채널 고정이라 채널 갇힘 문제도 없다.
+     *
+     * v5.4 — Android 16 Live Updates로 승격 요청: 상태바에 [아이콘 + "B1"] 칩이 붙고,
+     * One UI 8은 같은 알림을 잠금화면 Now Bar에 띄운다 ("잠긴 화면에서도 상태바에 떠 있게").
+     * 승격 조건: ongoing · setRequestPromotedOngoing · 제목/본문 있음 · BigText 스타일 ·
+     * POST_PROMOTED_NOTIFICATIONS 권한 · 채널이 MIN이 아님. Android 15 이하에서는 compat가
+     * 무시하므로 지금과 같은 상시 알림으로 남고, VISIBILITY_PUBLIC 덕에 잠금화면에서 내용은 보인다.
      */
     fun showParkedNotification(context: Context, floor: String?, startedAtMs: Long = 0L) {
         val nm = context.getSystemService(NotificationManager::class.java)
@@ -192,16 +235,20 @@ object ParkingNotification {
                 NotificationCompat.BigTextStyle()
                     .bigText("$detailLine\n탭하면 상세 보기 · 출발하면 자동으로 사라져요")
             )
-            .setColor(tone) // 알림창 colorized 배경도 층 색으로 — 상태바와 같은 신호
-            .setColorized(true) // 포그라운드 서비스 알림 → 알림창 배경 자체가 형광그린
+            .setColor(tone) // 아이콘·Live Updates 칩 색 = 층 색 (상태바와 같은 신호)
             .setContentIntent(mainActivityIntent(context))
-            .setOngoing(true)          // 스와이프로 지워지지 않음
+            .setOngoing(true)          // 스와이프로 지워지지 않음 (승격 조건)
             .setShowWhen(startedAtMs > 0L)
             .setWhen(if (startedAtMs > 0L) startedAtMs else System.currentTimeMillis())
             .setUsesChronometer(startedAtMs > 0L) // 주차 경과 시간 표시
             .setSubText(statusText)
             .setNumber(0)
             .setSilent(true)
+            .setOnlyAlertOnce(true)    // 층 갱신으로 다시 게시해도 재알림 없음
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // 잠금화면에서 내용 그대로
+            // Android 16 Live Updates — 상태바 칩 글자는 층수 하나 ("B1", 7자 이하 규칙)
+            .setRequestPromotedOngoing(true)
+            .setShortCriticalText(floor ?: "P")
             .build()
     }
 

@@ -4,6 +4,9 @@
     <!-- README.md 필수 권한 6종 + 부팅 재시작 -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- v5.4: Android 16 Live Updates — 주차 캡슐을 상태바 칩·잠금화면 Now Bar로 승격 (일반 권한,
+         사용자가 앱 알림 설정의 "실시간 업데이트" 토글로 끌 수 있다) -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />

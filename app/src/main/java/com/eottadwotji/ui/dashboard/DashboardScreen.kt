@@ -62,6 +62,7 @@ import com.eottadwotji.data.ParkingStore
 import com.eottadwotji.data.PhotoStore
 import com.eottadwotji.data.UpdateChecker
 import com.eottadwotji.detection.ParkingDetectionService
+import com.eottadwotji.detection.ParkingNotification
 import com.eottadwotji.ui.components.BrandWordmark
 import com.eottadwotji.ui.floorpicker.FloorPickerActivity
 import com.eottadwotji.ui.theme.AppType
@@ -165,6 +166,8 @@ fun DashboardScreen() {
         cameraLauncher.launch(uri)
     }
 
+    // v5.4: Android 16에서 "실시간 업데이트"가 꺼져 있으면 잠금화면 칩이 안 뜬다 — 주차 중일 때만 안내
+    val liveUpdates = remember(refreshKey) { ParkingNotification.liveUpdatesState(context) }
     val batteryExempt = remember(refreshKey) {
         runCatching {
             (context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager)
@@ -228,6 +231,14 @@ fun DashboardScreen() {
                         )
                     )
                 }
+            }
+        }
+
+        // ── 잠금화면 Now Bar(Live Updates) 꺼짐 안내 — Android 16, 주차 중일 때만 (v5.4) ──
+        if (isParked && liveUpdates == ParkingNotification.LiveUpdatesState.DISABLED) {
+            Spacer(Modifier.height(10.dp))
+            BannerRow(text = "잠금화면 Now Bar 표시가 꺼져 있어요 — 실시간 업데이트를 켜주세요", action = "켜기") {
+                ParkingNotification.openLiveUpdatesSettings(context)
             }
         }
 

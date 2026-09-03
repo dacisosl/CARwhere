@@ -92,7 +92,8 @@ import java.util.UUID
  *   층 박스는 상태바 아이콘과 같은 조형의 표지판 (v5.3부터 바탕은 시그니처 그린).
  * - v5.2 배치: 가장 중요한 [주차]가 큰 자리(오른쪽 사각)로 오고, 사진은 헤더의 작은
  *   카메라 버튼으로 갔다. 찍으면 헤더 버튼에 썸네일이 들어간다.
- * - 메모는 한 줄 입력(음성 입력 지원). [주차]를 누르면 층·메모·사진을 한 번에 저장.
+ * - 메모는 한 줄 입력(음성 입력 지원). [주차]를 누르면 층·메모·사진을 한 번에 저장하고
+ *   토스트로 끝난다 — v5.4에서 "맞아요?" 확인 카드 단계를 없앴다.
  * - v5.2: 10초 무응답 자동 하강을 없앴다 — 시트는 사용자가 닫을 때까지 남고,
  *   서비스가 주차 확정 즉시 층 없는 캡슐(P)을 이미 올려둔다.
  *
@@ -199,17 +200,13 @@ class FloorPickerActivity : ComponentActivity() {
             }
         }
 
-        // 확인 카드 설정에 따라: 카드 표시 또는 완료 토스트 (v3.7)
-        // 단, 이 위치의 기압 추정 첫 확인이면 설정과 무관하게 카드 1회 강제 (v3.9)
+        // v5.4: "이렇게 등록했어요 — 맞아요?" 확인 카드 삭제 — [주차] 한 번이면 끝, 토스트로만 알린다.
+        // 기압 추정 첫 확인 경고는 기록 카드 하단 warning 문구가 저장 전에 이미 보여준다.
         val confirmOrFinish: () -> Unit = {
-            if (store.confirmBeforeDone || strictEstimate) {
-                phase = Phase.CONFIRM
-            } else {
-                android.widget.Toast.makeText(
-                    context, "${savedFloor ?: "위치"} 등록됐어요", android.widget.Toast.LENGTH_SHORT
-                ).show()
-                onDone()
-            }
+            android.widget.Toast.makeText(
+                context, "${savedFloor ?: "위치"} 등록됐어요", android.widget.Toast.LENGTH_SHORT
+            ).show()
+            onDone()
         }
 
         var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
@@ -381,21 +378,6 @@ class FloorPickerActivity : ComponentActivity() {
                             )
                         }
 
-                        Phase.CONFIRM -> {
-                            SheetTitle(title = "이렇게 등록했어요 — 맞아요?", onBack = null)
-                            ConfirmCard(
-                                lotName = lot?.name,
-                                floor = savedFloor,
-                                memo = store.currentMemo(),
-                                hasPhoto = photoUri != null,
-                                startedAtMs = store.parkingStartedAt(),
-                                onConfirm = onDone,
-                                onEdit = {
-                                    savedFloor = null
-                                    phase = Phase.RECORD
-                                }
-                            )
-                        }
                     }
                     Spacer(Modifier.height(16.dp))
                 }
@@ -417,7 +399,7 @@ class FloorPickerActivity : ComponentActivity() {
     }
 }
 
-private enum class Phase { RECORD, LOT_SELECT, SETUP, CONFIRM }
+private enum class Phase { RECORD, LOT_SELECT, SETUP }
 
 /** 보조 화면(위치 선택·등록·확인)의 제목 줄 — 이전 버튼 선택 */
 @Composable
@@ -834,86 +816,6 @@ private fun LotSelectList(
                 contentAlignment = Alignment.Center
             ) {
                 Text("+ 새 위치 등록", style = AppType.FloorButton, color = Concrete.NeonDeep)
-            }
-        }
-    }
-}
-
-/**
- * 확인 카드: 저장 내용을 요약해 보여주고 최종 확인을 받는다.
- * [맞아요] → 시트 닫기, [수정하기] → 기록 카드로 돌아가 다시 고른다.
- */
-@Composable
-private fun ConfirmCard(
-    lotName: String?,
-    floor: String?,
-    memo: String?,
-    hasPhoto: Boolean,
-    startedAtMs: Long,
-    onConfirm: () -> Unit,
-    onEdit: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Concrete.BgPanel, RoundedCornerShape(10.dp))
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val basement = floor?.let { ParkingLotProfile.isBasement(it) } ?: true
-                Text(
-                    floor ?: "층 미지정",
-                    style = AppType.Title,
-                    color = when {
-                        floor == null -> Concrete.TextDim
-                        basement -> Concrete.Neon
-                        else -> Concrete.Accent
-                    }
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    lotName ?: "이름 없는 주차장",
-                    style = AppType.Body,
-                    color = Concrete.TextMain
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    java.text.SimpleDateFormat("a h:mm", java.util.Locale.KOREAN)
-                        .format(java.util.Date(startedAtMs)),
-                    style = AppType.Hint,
-                    color = Concrete.TextDim
-                )
-            }
-            val details = listOfNotNull(
-                memo?.takeIf { it.isNotBlank() },
-                if (hasPhoto) "사진 1장" else null
-            )
-            if (details.isNotEmpty()) {
-                Text(details.joinToString(" · "), style = AppType.BodySmall, color = Concrete.TextSub)
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .background(Concrete.BgPanel, RoundedCornerShape(8.dp))
-                    .clickable(onClick = onEdit),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("수정하기", style = AppType.BodySmall, color = Concrete.TextSub)
-            }
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .background(Concrete.Neon, RoundedCornerShape(8.dp))
-                    .clickable(onClick = onConfirm),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("맞아요", style = AppType.FloorButton, color = Concrete.NeonDeep)
             }
         }
     }
