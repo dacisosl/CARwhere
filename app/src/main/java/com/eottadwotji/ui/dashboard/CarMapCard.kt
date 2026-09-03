@@ -23,8 +23,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -37,6 +39,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +49,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -137,63 +142,92 @@ fun CarMapCard(
         }
     }
 
+    // 칩 줄 스크롤 상태 — 위치가 3개를 넘으면 화면 밖으로 나가므로 (v5.3)
+    //  ① 선택된 위치가 밖에 있으면 그 칩으로 스크롤해 오고
+    //  ② 오른쪽에 더 있다는 것을 페이드로 알린다
+    val chipState = rememberLazyListState()
+    val selectedIndex = lots.indexOfFirst { it.id == selectedLotId }
+    LaunchedEffect(selectedLotId, lots.size) {
+        if (selectedIndex >= 0) {
+            // 검색 칩이 0번이므로 위치 칩은 +1
+            runCatching { chipState.animateScrollToItem((selectedIndex + 1).coerceAtLeast(0)) }
+        }
+    }
+
     Column(
         modifier = modifier
             .appCard()
             .padding(vertical = 12.dp)
     ) {
         // ── 칩 줄: 검색 + 저장된 위치 ──
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            contentPadding = PaddingValues(horizontal = 14.dp)
-        ) {
-            item {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            LazyRow(
+                state = chipState,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                contentPadding = PaddingValues(horizontal = 14.dp)
+            ) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(Concrete.BgPanel, CircleShape)
+                            .then(
+                                if (searching) Modifier.border(1.5.dp, Concrete.Neon, CircleShape)
+                                else Modifier
+                            )
+                            .clickable {
+                                searching = !searching
+                                if (!searching) {
+                                    query = ""
+                                    searchPin = null
+                                    searchHint = null
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = "위치 검색",
+                            tint = if (searching) Concrete.Neon else Concrete.TextSub,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                }
+                items(lots, key = { it.id }) { lot ->
+                    LotChip(
+                        label = lot.name,
+                        active = lot.id == selectedLotId && searchPin == null,
+                        onClick = {
+                            searchPin = null
+                            searchHint = null
+                            onLotSelect(lot)
+                        }
+                    )
+                }
+                if (lots.isEmpty()) {
+                    item {
+                        Text(
+                            "위치관리 탭에서 자주 가는 곳을 등록해요",
+                            style = AppType.Hint,
+                            color = Concrete.TextDim
+                        )
+                    }
+                }
+            }
+            // 오른쪽에 칩이 더 있으면 카드색으로 페이드 — 스크롤할 수 있다는 신호
+            if (chipState.canScrollForward) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .background(Concrete.BgPanel, CircleShape)
-                        .then(
-                            if (searching) Modifier.border(1.5.dp, Concrete.Neon, CircleShape)
-                            else Modifier
+                        .align(Alignment.CenterEnd)
+                        .width(24.dp)
+                        .height(32.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color.Transparent, Concrete.BgDeep)
+                            )
                         )
-                        .clickable {
-                            searching = !searching
-                            if (!searching) {
-                                query = ""
-                                searchPin = null
-                                searchHint = null
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Search,
-                        contentDescription = "위치 검색",
-                        tint = if (searching) Concrete.Neon else Concrete.TextSub,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-            }
-            items(lots, key = { it.id }) { lot ->
-                LotChip(
-                    label = lot.name,
-                    active = lot.id == selectedLotId && searchPin == null,
-                    onClick = {
-                        searchPin = null
-                        searchHint = null
-                        onLotSelect(lot)
-                    }
                 )
-            }
-            if (lots.isEmpty()) {
-                item {
-                    Text(
-                        "위치관리 탭에서 자주 가는 곳을 등록해요",
-                        style = AppType.Hint,
-                        color = Concrete.TextDim
-                    )
-                }
             }
         }
 
@@ -533,7 +567,7 @@ private fun pinDrawable(context: Context, sizeDp: Int, fill: Int, ring: Int): Bi
     canvas.drawCircle(c, c, c - 2f * density, paint)
     paint.style = Paint.Style.FILL
     paint.textAlign = Paint.Align.CENTER
-    paint.typeface = android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD)
+    paint.typeface = com.eottadwotji.ui.theme.AppFont.black(context)
     paint.textSize = px * 0.5f
     val baseline = c - (paint.descent() + paint.ascent()) / 2f
     canvas.drawText("P", c, baseline, paint)

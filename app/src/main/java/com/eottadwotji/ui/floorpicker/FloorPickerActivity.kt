@@ -85,7 +85,7 @@ import java.util.UUID
  *   메모 ___________________________________ 🎤
  *
  * - 층은 ◁ ▷ 스테퍼로 고른다 (◁ 위층, ▷ 아래층). 기압 추정·지난번 층이 초기값.
- *   층 박스는 상태바 아이콘과 같은 층별 색 표지판 (FloorTone).
+ *   층 박스는 상태바 아이콘과 같은 조형의 표지판 (v5.3부터 바탕은 시그니처 그린).
  * - v5.2 배치: 가장 중요한 [주차]가 큰 자리(오른쪽 사각)로 오고, 사진은 헤더의 작은
  *   카메라 버튼으로 갔다. 찍으면 헤더 버튼에 썸네일이 들어간다.
  * - 메모는 한 줄 입력(음성 입력 지원). [주차]를 누르면 층·메모·사진을 한 번에 저장.
@@ -520,8 +520,8 @@ private fun RecordCard(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 층 표지판 — 상태바 아이콘과 같은 색·조형
-                FloorSign(floor = floor, fontSize = 44.sp)
+                // 층 표지판 — 오른쪽 [주차]가 그린 버튼이므로 여기는 테두리 판 (v5.3)
+                FloorSign(floor = floor, fontSize = 44.sp, outlined = true)
                 floorSuffix(floor)?.let {
                     Spacer(Modifier.height(4.dp))
                     Text(it, style = AppType.Micro, color = Concrete.TextSub, maxLines = 1)

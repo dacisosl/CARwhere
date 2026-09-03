@@ -12,7 +12,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
-import android.graphics.Typeface
 import androidx.core.app.NotificationCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.eottadwotji.MainActivity
@@ -98,7 +97,7 @@ object ParkingNotification {
      */
     fun buildIdleNotification(context: Context): Notification =
         NotificationCompat.Builder(context, CHANNEL_IDLE)
-            .setSmallIcon(IconCompat.createWithBitmap(renderTextIcon("P")))
+            .setSmallIcon(IconCompat.createWithBitmap(renderTextIcon(context, "P")))
             .setContentTitle("어따뒀지 감지 중")
             .setContentIntent(mainActivityIntent(context))
             .setOngoing(true)
@@ -125,7 +124,7 @@ object ParkingNotification {
         else "몇 층에 주차했는지 탭하세요"
 
         val builder = NotificationCompat.Builder(context, CHANNEL_POPUP)
-            .setSmallIcon(IconCompat.createWithBitmap(renderTextIcon("P?")))
+            .setSmallIcon(IconCompat.createWithBitmap(renderTextIcon(context, "P?")))
             .setContentTitle("주차하셨나요?")
             .setContentText(bodyText)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -167,7 +166,7 @@ object ParkingNotification {
     ): Notification {
         val statusText = if (floor != null) "P·$floor" else "P"
         val tone = floorColor(floor)
-        val icon = IconCompat.createWithBitmap(renderTextIcon(floor ?: "P", tone))
+        val icon = IconCompat.createWithBitmap(renderTextIcon(context, floor ?: "P", tone))
 
         val store = com.eottadwotji.data.ParkingStore(context)
         val detailLine = listOfNotNull(
@@ -223,7 +222,11 @@ object ParkingNotification {
      * 되어 층을 읽을 수 없다. 뚫어내면 색 보존 기기에선 컬러 표지판 + 어두운 글자,
      * 강제 단색 기기에선 흰 표지판 + 글자로 양쪽 모두 읽힌다.
      */
-    private fun renderTextIcon(text: String, tint: Int = NEON): Bitmap {
+    private fun renderTextIcon(
+        context: Context,
+        text: String,
+        tint: Int = NEON
+    ): Bitmap {
         val size = 144 // 상태바에서 축소되므로 해상도를 올려 글자 획을 선명하게
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -236,7 +239,7 @@ object ParkingNotification {
         canvas.drawRoundRect(0f, top, size.toFloat(), bottom, corner, corner, plate)
 
         val punch = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
+            typeface = com.eottadwotji.ui.theme.AppFont.black(context)
             textAlign = Paint.Align.CENTER
             xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
         }

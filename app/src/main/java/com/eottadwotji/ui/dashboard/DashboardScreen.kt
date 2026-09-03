@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -62,7 +63,6 @@ import com.eottadwotji.data.PhotoStore
 import com.eottadwotji.data.UpdateChecker
 import com.eottadwotji.detection.ParkingDetectionService
 import com.eottadwotji.ui.components.BrandWordmark
-import com.eottadwotji.ui.components.FloorSign
 import com.eottadwotji.ui.floorpicker.FloorPickerActivity
 import com.eottadwotji.ui.theme.AppType
 import com.eottadwotji.ui.theme.Concrete
@@ -86,7 +86,7 @@ import java.util.Locale
  *
  * v5.2 변경 (사용자 피드백):
  * - 스크롤 제거 → 지도 카드가 weight(1f)로 남는 높이를 먹는다 (지도 밑 여백 없음)
- * - 원형 엔진 버튼 폐기 → 층 표지판(FloorSign). 상태바 아이콘과 같은 조형·색
+ * - 원형 엔진 버튼 폐기 → 층수 글자만 (v5.3: 필드·표지판 바탕 없이 시그니처 색 숫자)
  * - 모든 카드 Modifier.appCard() — 테두리+그림자로 바탕과 확실히 구분
  */
 @Composable
@@ -408,7 +408,14 @@ private fun ElapsedBar(parked: Boolean, startedAtMs: Long, detecting: Boolean) {
 
 // ── 타일 ──────────────────────────────────────────────────────
 
-/** 층 타일 — 카드 안에 층 표지판. 누르면 다시 기록(주차 전엔 수동 기록) */
+/**
+ * 층 표시 (v5.3) — 카드도 표지판 바탕도 없이 "층수 글자만".
+ *
+ * v5.2는 흰 카드 안에 형광 층별 색 표지판을 넣었는데, 필드가 겹쳐 보이고 색이 튄다는
+ * 피드백을 받았다. 이제 바탕 위에 시그니처 딥 파인 그린 숫자만 크게 놓는다 —
+ * 화면에서 가장 큰 글자이므로 배경 없이도 가장 먼저 읽힌다.
+ * 누르면 다시 기록(주차 전엔 수동 기록).
+ */
 @Composable
 private fun FloorTile(
     floor: String?,
@@ -417,29 +424,32 @@ private fun FloorTile(
     onPress: () -> Unit
 ) {
     Box(
-        modifier = modifier
-            .appCard()
-            .clickable(onClick = onPress),
+        modifier = modifier.clickable(onClick = onPress),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            FloorSign(floor = floor, fontSize = 52.sp, lit = parked)
-            Spacer(Modifier.height(8.dp))
+            Text(
+                if (parked) (floor ?: "P") else "—",
+                style = AppType.Sign.copy(fontSize = 68.sp),
+                color = if (parked) Concrete.Neon else Concrete.TextDim,
+                maxLines = 1
+            )
             Text(
                 if (parked) "탭해서 다시 기록" else "탭해서 수동 기록",
                 style = AppType.Micro,
-                color = Concrete.TextDim
+                color = Concrete.TextDim,
+                modifier = Modifier.padding(top = 2.dp)
             )
         }
     }
 }
 
 /**
- * 사진 타일 — 주차 사진이 있으면 사진을 꽉 채우고, 없으면 "주차된 내 차"를 보여준다.
+ * 사진 타일 — 주차 사진이 있으면 사진을 꽉 채우고, 없으면 "주차된 내 차" 사진을 보여준다.
  *
- * v5.2: 동그란 앱 아이콘을 버리고 어두운 주차 구획 위에 차가 서 있는 장면으로 바꿨다.
- * 에셋(ic_fg_*)이 이미 "주차 구획에 세워진 차" 사진이라 아래쪽(차+바닥)만 크롭해서 쓴다.
- * 바닥에 그린 언더글로우를 얹어 시그니처 색과 연결한다.
+ * v5.3: 합성 주차 구획(그라디언트 + 언더글로우)을 버리고 실제 사진(car_*)을 그대로 쓴다.
+ * 원본 아트에서 "주차" 글자 띠를 빼고 라임 액센트를 딥 파인 그린으로 바꾼 이미지라
+ * 천장 조명·주차 구획선이 그대로 살아 있다 — 합성 배경이 필요없다.
  */
 @Composable
 private fun PhotoTile(
@@ -489,95 +499,72 @@ private fun PhotoTile(
                 Text("사진 보기", style = AppType.Micro, color = Color.White)
             }
         } else {
-            // 주차 구획: 어두운 바닥 + 그린 언더글로우 + 차
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color(0xFF23272C), Color(0xFF14161A))
-                        )
-                    )
-            ) {
-                // 바닥 언더글로우 (차가 서 있는 자리)
+            // 주차된 내 차 사진 (천장 조명 + 구획선이 사진에 들어 있다)
+            if (carBitmap != null) {
+                Image(
+                    bitmap = carBitmap.asImageBitmap(),
+                    contentDescription = "내 차",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = if (parked) 1f else 0.72f }
+                )
+            } else {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth(0.82f)
-                        .height(34.dp)
-                        .padding(bottom = 22.dp)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(
-                                    Concrete.Neon.copy(alpha = if (parked) 0.55f else 0.18f),
-                                    Color.Transparent
-                                )
-                            ),
-                            RoundedCornerShape(50)
-                        )
-                )
-                if (carBitmap != null) {
-                    // 에셋 아래쪽(차 + 바닥)만 보이도록 아래 정렬 + 확대
-                    Image(
-                        bitmap = carBitmap.asImageBitmap(),
-                        contentDescription = "내 차",
-                        contentScale = ContentScale.Crop,
-                        alignment = Alignment.BottomCenter,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = 20.dp)
-                            .graphicsLayer {
-                                scaleX = 1.32f
-                                scaleY = 1.32f
-                                alpha = if (parked) 1f else 0.6f
-                            }
-                    )
-                } else {
+                        .fillMaxSize()
+                        .background(Color(0xFF17191D)),
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_car),
                         contentDescription = "내 차",
                         tint = if (parked) Concrete.Neon else Color(0xFF6B7380),
-                        modifier = Modifier.align(Alignment.Center).size(48.dp)
+                        modifier = Modifier.size(48.dp)
                     )
                 }
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (parked) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_camera),
-                            contentDescription = null,
-                            tint = Color(0xFFB8BEC6),
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(Modifier.size(4.dp))
-                    }
-                    Text(
-                        if (parked) "탭해서 사진 찍기" else "내 차",
-                        style = AppType.Micro,
-                        color = Color(0xFFB8BEC6)
+            }
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp)
+                    .background(Color(0x99000000), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (parked) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_camera),
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(12.dp)
                     )
+                    Spacer(Modifier.size(4.dp))
                 }
+                Text(
+                    if (parked) "탭해서 사진 찍기" else "내 차",
+                    style = AppType.Micro,
+                    color = Color.White
+                )
             }
         }
     }
 }
 
 /**
- * 내 차 이미지: 설정에서 고른 차종·색 에셋(ic_fg_*) → 없으면 런처 아이콘.
- * 에셋은 "주차 구획에 세워진 차" 아트라 타일에 그대로 쓸 수 있다.
+ * 내 차 사진: 설정에서 고른 차종·색의 주차 사진(car_*) → 없으면 기존 아이콘 아트 → 런처 아이콘.
+ * car_* 는 "주차 구획에 세워진 차" 사진에서 "주차" 글자를 빼고 팔레트에 맞춰 재채색한 것이다.
  */
 private fun loadCarBitmap(context: Context, car: String?, color: String?): Bitmap? {
-    val resId = if (car != null && color != null) {
-        context.resources.getIdentifier("ic_fg_${car}_$color", "drawable", context.packageName)
-    } else {
-        R.drawable.ic_fg_sedan_white // 기본 = 흰색 중형차 (v3.5)
+    val type = car ?: "sedan"
+    val tone = color ?: "white"
+    val photoId = context.resources.getIdentifier("car_${type}_$tone", "drawable", context.packageName)
+    if (photoId != 0) {
+        BitmapFactory.decodeResource(context.resources, photoId)?.let { return it }
     }
-    val drawable = if (resId != 0) {
-        ContextCompat.getDrawable(context, resId)
+    val fallbackId = context.resources.getIdentifier("ic_fg_${type}_$tone", "drawable", context.packageName)
+    val drawable = if (fallbackId != 0) {
+        ContextCompat.getDrawable(context, fallbackId)
     } else {
         runCatching { context.packageManager.getApplicationIcon(context.packageName) }.getOrNull()
     }

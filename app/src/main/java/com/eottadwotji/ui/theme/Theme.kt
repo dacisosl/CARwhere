@@ -118,15 +118,25 @@ object Concrete {
 }
 
 /**
- * 계기판 디스플레이 폰트 (v3.9) — 층수 숫자·게이지 캡션 등 "계기" 요소 전용.
- * 라틴/숫자만 포함, 한글은 시스템 폰트로 자동 폴백된다.
+ * 앱 전체 서체 (v5.3) — Pretendard.
+ *
+ * v5.2까지는 본문이 기기 기본 서체(로마자 Roboto / 한글은 제조사 폰트)였고, 층수 숫자만
+ * Chakra Petch(라틴 전용)라 한글과 숫자의 인상이 달랐다. 한글 자폭·자간이 고른 Pretendard
+ * 하나로 통일하면 기기(삼성·픽셀)마다 달라지던 인상도 같아진다.
+ *
+ * 4단(400/600/700/900)만 담았다 — 웨이트 하나가 약 1.5MB라 전부 넣으면 APK가 커진다.
+ * Compose는 요청한 굵기가 없으면 가장 가까운 것을 고르므로 Medium(500)은 400으로 읽힌다.
+ * 라이선스: SIL OFL 1.1 (docs/licenses/Pretendard-OFL.txt)
  */
-val DisplayFont = androidx.compose.ui.text.font.FontFamily(
-    androidx.compose.ui.text.font.Font(
-        com.eottadwotji.R.font.chakra_petch_bold,
-        FontWeight.Bold
-    )
+val Pretendard = androidx.compose.ui.text.font.FontFamily(
+    androidx.compose.ui.text.font.Font(com.eottadwotji.R.font.pretendard_regular, FontWeight.Normal),
+    androidx.compose.ui.text.font.Font(com.eottadwotji.R.font.pretendard_semibold, FontWeight.SemiBold),
+    androidx.compose.ui.text.font.Font(com.eottadwotji.R.font.pretendard_bold, FontWeight.Bold),
+    androidx.compose.ui.text.font.Font(com.eottadwotji.R.font.pretendard_black, FontWeight.Black)
 )
+
+/** v5.2까지 쓰던 이름 — 이제 전부 Pretendard다 (호출부 호환용) */
+val DisplayFont = Pretendard
 
 /**
  * 타이포 스케일 (DESIGN.md 3절).
@@ -136,8 +146,11 @@ object AppType {
     val FloorBig = TextStyle(
         fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = DisplayFont
     )
-    val Title = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium)
-    val Brand = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium, letterSpacing = 2.sp)
+    val Title = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, fontFamily = Pretendard)
+    val Brand = TextStyle(
+        fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+        fontFamily = Pretendard, letterSpacing = 2.sp
+    )
     val GaugeFloor = TextStyle(
         fontSize = 26.sp, fontWeight = FontWeight.Bold, fontFamily = DisplayFont
     )
@@ -145,7 +158,9 @@ object AppType {
         fontSize = 9.sp, fontWeight = FontWeight.Bold,
         letterSpacing = 2.sp, fontFamily = DisplayFont
     )
-    val FloorButton = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium)
+    val FloorButton = TextStyle(
+        fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = Pretendard
+    )
 
     /**
      * 표지판 글자 (v5.2) — 층수·워드마크처럼 "사인"으로 읽혀야 하는 곳.
@@ -154,19 +169,22 @@ object AppType {
     val Sign = TextStyle(
         fontSize = 40.sp,
         fontWeight = FontWeight.Black,
-        fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
+        fontFamily = Pretendard,
         letterSpacing = (-0.5).sp
     )
-    val Body = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Normal)
-    val BodySmall = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal)
-    val Hint = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal)
+    val Body = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Normal, fontFamily = Pretendard)
+    val BodySmall = TextStyle(
+        fontSize = 13.sp, fontWeight = FontWeight.Normal, fontFamily = Pretendard
+    )
+    val Hint = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal, fontFamily = Pretendard)
     /** 카드 섹션 라벨 — v4.3에서 11sp→12sp, 호출부는 TextSub로 (너무 안 보였다) */
     val SectionLabel = TextStyle(
-        fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp
+        fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+        fontFamily = Pretendard, letterSpacing = 0.5.sp
     )
 
     /** 한 줄 진단·보조 문구 (헤더 신호 표시 등) */
-    val Micro = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Normal)
+    val Micro = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Normal, fontFamily = Pretendard)
 }
 
 @Composable
@@ -218,5 +236,27 @@ fun EottadwotjiTheme(content: @Composable () -> Unit) {
         )
     }
 
-    MaterialTheme(colorScheme = scheme, content = content)
+    // 스타일을 지정하지 않은 Text()·TextField까지 Pretendard로 (기본 Typography를 통째로 교체)
+    val typography = remember {
+        val base = androidx.compose.material3.Typography()
+        base.copy(
+            displayLarge = base.displayLarge.copy(fontFamily = Pretendard),
+            displayMedium = base.displayMedium.copy(fontFamily = Pretendard),
+            displaySmall = base.displaySmall.copy(fontFamily = Pretendard),
+            headlineLarge = base.headlineLarge.copy(fontFamily = Pretendard),
+            headlineMedium = base.headlineMedium.copy(fontFamily = Pretendard),
+            headlineSmall = base.headlineSmall.copy(fontFamily = Pretendard),
+            titleLarge = base.titleLarge.copy(fontFamily = Pretendard),
+            titleMedium = base.titleMedium.copy(fontFamily = Pretendard),
+            titleSmall = base.titleSmall.copy(fontFamily = Pretendard),
+            bodyLarge = base.bodyLarge.copy(fontFamily = Pretendard),
+            bodyMedium = base.bodyMedium.copy(fontFamily = Pretendard),
+            bodySmall = base.bodySmall.copy(fontFamily = Pretendard),
+            labelLarge = base.labelLarge.copy(fontFamily = Pretendard),
+            labelMedium = base.labelMedium.copy(fontFamily = Pretendard),
+            labelSmall = base.labelSmall.copy(fontFamily = Pretendard)
+        )
+    }
+
+    MaterialTheme(colorScheme = scheme, typography = typography, content = content)
 }

@@ -3,7 +3,6 @@ package com.eottadwotji.ui.splash
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Shader
-import android.graphics.Typeface
 import android.net.Uri
 import android.widget.VideoView
 import androidx.compose.animation.core.animateFloatAsState
@@ -150,12 +149,14 @@ fun CinematicSplash(onDone: () -> Unit) {
 
 /**
  * 네온 사인 워드마크 — 글자별 점등 + 자간 수축 + 하이라이트 스윕 + 헤어라인 + 태그라인.
- * 한글은 디스플레이 폰트(Chakra Petch)에 글리프가 없어 시스템 볼드로 그린다.
+ * 글자는 앱 서체인 Pretendard Black으로 그린다 (v5.3).
  */
 @Composable
 private fun NeonWordmark(elapsedMs: Long, modifier: Modifier) {
     val glyphs = remember { BRAND.map(Char::toString) }
-    val bold = remember { Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+    // v5.3 — 앱 전체와 같은 Pretendard로. 한글 글리프가 있어 시스템 볼드 폴백이 필요없다
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val bold = remember { com.eottadwotji.ui.theme.AppFont.black(context) }
     val wordPaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = bold }
     }
@@ -164,7 +165,7 @@ private fun NeonWordmark(elapsedMs: Long, modifier: Modifier) {
     }
     val tagPaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            typeface = com.eottadwotji.ui.theme.AppFont.body(context)
             textAlign = Paint.Align.CENTER
             letterSpacing = 0.22f
         }
