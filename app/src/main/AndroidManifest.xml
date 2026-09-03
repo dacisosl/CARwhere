@@ -14,6 +14,8 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- v3: GitHub Releases 업데이트 확인·다운로드 + 설치 화면 호출 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- v4.2: 대시보드 지도 타일(osmdroid) 네트워크 상태 확인용 (일반 권한) -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- API 30 이하에서 페어링 기기 목록 조회용 (31+는 BLUETOOTH_CONNECT로 대체) -->
     <uses-permission
@@ -212,10 +214,14 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
-        <!-- 매니페스트 등록은 백업 경로 — API 33+ 제한 대응으로 서비스 안에서 동적 등록 이중화 (README) -->
+        <!-- 차량 BT 감지의 유일한 상시 경로 (대기 중엔 서비스가 없다 — v3.6 수명 정책).
+             exported="true"가 필수: ACL 브로드캐스트는 system_server(uid 1000)가 아니라
+             블루투스 스택 프로세스(uid bluetooth)가 보내므로, exported="false"면 AMS가
+             "is not exported from uid" 로 걸러 버려 리시버가 영영 깨어나지 않는다 (v4.2 수정).
+             ACL_CONNECTED/DISCONNECTED는 protected-broadcast라 다른 앱이 위조할 수 없어 안전. -->
         <receiver
             android:name=".detection.CarBluetoothReceiver"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
                 <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />

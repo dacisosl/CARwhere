@@ -77,4 +77,7 @@ dependencies {
 
     // v2: 홈 위젯 2종 (Glance)
     implementation("androidx.glance:glance-appwidget:1.1.1")
+
+    // v4.2: 대시보드 지도 카드 — OSM 타일(API 키 불필요), 캐시는 앱 cacheDir
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
 }

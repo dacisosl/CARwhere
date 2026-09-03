@@ -40,6 +40,24 @@ class ParkingStore(context: Context) {
         get() = prefs.getBoolean(KEY_MANUAL_ONLY, false)
         set(value) = prefs.edit().putBoolean(KEY_MANUAL_ONLY, value).apply()
 
+    // ── 감지 진단 (v4.2) ────────────────────────────────────
+
+    /**
+     * 내 차 BT 브로드캐스트가 마지막으로 도달한 시각/종류.
+     * 리시버가 실제로 깨어나는지 실기기에서 눈으로 확인하는 용도 — 대시보드에 표시.
+     * (에뮬레이터로는 ACL 이벤트 재현이 안 되므로 이 기록이 유일한 검증 수단)
+     */
+    fun recordCarEvent(connected: Boolean, atMs: Long = System.currentTimeMillis()) {
+        prefs.edit()
+            .putLong(KEY_LAST_CAR_EVENT_AT, atMs)
+            .putBoolean(KEY_LAST_CAR_EVENT_CONNECTED, connected)
+            .apply()
+    }
+
+    fun lastCarEventAt(): Long = prefs.getLong(KEY_LAST_CAR_EVENT_AT, 0L)
+
+    fun lastCarEventConnected(): Boolean = prefs.getBoolean(KEY_LAST_CAR_EVENT_CONNECTED, false)
+
     // ── 설정 ────────────────────────────────────────────────
 
     /**
@@ -84,10 +102,13 @@ class ParkingStore(context: Context) {
         get() = prefs.getBoolean(KEY_SHOW_RECENT_CARD, false)
         set(value) = prefs.edit().putBoolean(KEY_SHOW_RECENT_CARD, value).apply()
 
-    /** v3.9.4: 대시보드 빠른 설정 카드 펼침 상태 — 기본 열림, 닫고 나가면 그대로 유지 */
+    /**
+     * 대시보드 설정 카드의 아코디언(전체 목록) 펼침 상태 — 닫고 나가면 그대로 유지.
+     * v4.2: 즐겨찾기 행은 항상 보이므로 아코디언은 기본 접힘 (키 교체로 이전 값과 분리).
+     */
     var quickSettingsExpanded: Boolean
-        get() = prefs.getBoolean(KEY_QUICK_SETTINGS_EXPANDED, true)
-        set(value) = prefs.edit().putBoolean(KEY_QUICK_SETTINGS_EXPANDED, value).apply()
+        get() = prefs.getBoolean(KEY_SETTINGS_ACCORDION_OPEN, false)
+        set(value) = prefs.edit().putBoolean(KEY_SETTINGS_ACCORDION_OPEN, value).apply()
 
     /** v2: 기압 자동감지 베타 — 추정 층을 미리 선택만, 확정은 항상 사람 탭 (절대 규칙 5) */
     var pressureAutoDetect: Boolean
@@ -337,7 +358,9 @@ class ParkingStore(context: Context) {
         private const val KEY_CONFIRM_CARD = "confirm_card"
         private const val KEY_STARRED_SETTINGS = "starred_settings"
         private const val KEY_SHOW_RECENT_CARD = "show_recent_card"
-        private const val KEY_QUICK_SETTINGS_EXPANDED = "quick_settings_expanded"
+        private const val KEY_SETTINGS_ACCORDION_OPEN = "settings_accordion_open"
+        private const val KEY_LAST_CAR_EVENT_AT = "last_car_event_at"
+        private const val KEY_LAST_CAR_EVENT_CONNECTED = "last_car_event_connected"
 
         /** 대시보드 빠른 설정 기본 구성 */
         val DEFAULT_STARRED = setOf(STAR_PRESSURE, STAR_SHEET_MODE)

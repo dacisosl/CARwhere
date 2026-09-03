@@ -1,0 +1,33 @@
+name: Build check (branches)
+
+# main 이외 브랜치 푸시 때 디버그 APK만 컴파일해 빌드 깨짐을 미리 잡는다.
+# 릴리스/배포는 release.yml(main 전용)이 담당 — 여기서는 아무것도 배포하지 않는다.
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
