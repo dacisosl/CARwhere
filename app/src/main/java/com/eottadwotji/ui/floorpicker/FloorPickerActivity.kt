@@ -528,6 +528,7 @@ private fun RecordCard(
                 ) {
                     StepArrow(
                         symbol = "◁",
+                        tone = Concrete.StepUp,
                         enabled = index > 0,
                         onClick = { onFloorIndex(index - 1) }
                     )
@@ -547,6 +548,7 @@ private fun RecordCard(
                     }
                     StepArrow(
                         symbol = "▷",
+                        tone = Concrete.StepDown,
                         enabled = index < floors.size - 1,
                         onClick = { onFloorIndex(index + 1) }
                     )
@@ -556,14 +558,25 @@ private fun RecordCard(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    StepCaption("위층", enabled = index > 0, modifier = Modifier.width(STEP_ARROW_WIDTH))
                     StepCaption(
+                        "위층",
+                        tone = Concrete.StepUp,
+                        enabled = index > 0,
+                        modifier = Modifier.width(STEP_ARROW_WIDTH)
+                    )
+                    // 가운데 캡션(지난번·기압 추정)은 보조 문구라 강조하지 않는다
+                    Text(
                         floorSuffix(floor) ?: " ",
-                        enabled = true,
+                        style = AppType.Micro,
+                        color = Concrete.TextDim,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        softWrap = false,
                         modifier = Modifier.weight(1f)
                     )
                     StepCaption(
                         "아래층",
+                        tone = Concrete.StepDown,
                         enabled = index < floors.size - 1,
                         modifier = Modifier.width(STEP_ARROW_WIDTH)
                     )
@@ -645,32 +658,49 @@ private fun PhotoHeaderButton(uriString: String?, onClick: () -> Unit) {
     }
 }
 
-/** 층 스테퍼 화살표 — 44×56 패널 버튼. 캡션은 아래 줄(StepCaption)에서 따로 맞춘다 */
+/**
+ * 층 스테퍼 화살표 — 44×56 패널 버튼 (v5.3.2: 방향을 색으로).
+ * 위층은 파랑, 아래층은 빨강. 옅은 색 바탕 + 같은 색 테두리·글리프로,
+ * 층수를 올리는지 내리는지 글자를 읽지 않고도 알게 한다. 캡션은 아래 줄(StepCaption).
+ */
 @Composable
-private fun StepArrow(symbol: String, enabled: Boolean, onClick: () -> Unit) {
+private fun StepArrow(symbol: String, tone: Color, enabled: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = Modifier
             .width(STEP_ARROW_WIDTH)
             .height(STEP_CONTROL_HEIGHT)
-            .background(Concrete.BgPanel, RoundedCornerShape(12.dp))
+            .background(if (enabled) tone.copy(alpha = 0.12f) else Concrete.BgPanel, shape)
+            .then(
+                if (enabled) Modifier.border(1.5.dp, tone.copy(alpha = 0.45f), shape)
+                else Modifier
+            )
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
             symbol,
-            style = AppType.Title.copy(fontSize = 22.sp),
-            color = if (enabled) Concrete.TextMain else Concrete.Border
+            style = AppType.Sign.copy(fontSize = 22.sp),
+            color = if (enabled) tone else Concrete.Border
         )
     }
 }
 
-/** 스테퍼 아래 줄 캡션 — 한 줄 고정, 가운데 정렬 (줄바꿈으로 높이가 어긋나지 않게) */
+/**
+ * 스테퍼 아래 줄 캡션 — 위층/아래층. 화살표와 같은 색·굵기로 한 쌍으로 읽히게 한다
+ * (v5.3.2: 10sp 회색 → 12sp SemiBold 방향색). 한 줄 고정이라 높이가 어긋나지 않는다.
+ */
 @Composable
-private fun StepCaption(text: String, enabled: Boolean, modifier: Modifier = Modifier) {
+private fun StepCaption(
+    text: String,
+    tone: Color,
+    enabled: Boolean,
+    modifier: Modifier = Modifier
+) {
     Text(
         text,
-        style = AppType.Micro,
-        color = if (enabled) Concrete.TextDim else Concrete.Border,
+        style = AppType.SectionLabel.copy(letterSpacing = 0.sp),
+        color = if (enabled) tone else Concrete.Border,
         textAlign = TextAlign.Center,
         maxLines = 1,
         softWrap = false,

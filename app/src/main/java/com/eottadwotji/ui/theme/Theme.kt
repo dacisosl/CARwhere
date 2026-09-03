@@ -47,7 +47,9 @@ data class Palette(
     val neonLight: Color,  // 시그니처 강조 텍스트
     val neonDeep: Color,   // 시그니처 배경 위 텍스트
     val accent: Color,     // 포인트 — 머스크 버건디: 숫자·태그·링크 (화면당 한 곳)
-    val accentSoft: Color  // 포인트 배지 배경
+    val accentSoft: Color, // 포인트 배지 배경
+    val stepUp: Color,     // 위층 — 파랑 (기록 카드 스테퍼 전용)
+    val stepDown: Color    // 아래층 — 빨강 (기록 카드 스테퍼 전용)
 )
 
 /**
@@ -69,7 +71,9 @@ val LightPalette = Palette(
     neonLight = Color(0xFF2F6B4F),
     neonDeep = Color(0xFFFFFFFF),
     accent = Color(0xFF9E4A5C),
-    accentSoft = Color(0xFFF5EBEE)
+    accentSoft = Color(0xFFF5EBEE),
+    stepUp = Color(0xFF1A73E8),
+    stepDown = Color(0xFFD93B3B)
 )
 
 /** 다크(선택): 잉크 바탕에 같은 색상 계열을 밝혀서 — 톤만 뒤집고 정체성은 유지 */
@@ -86,7 +90,9 @@ val DarkPalette = Palette(
     neonLight = Color(0xFF7FC29B),
     neonDeep = Color(0xFFFFFFFF),
     accent = Color(0xFFC97A8A),
-    accentSoft = Color(0xFF3A2A2E)
+    accentSoft = Color(0xFF3A2A2E),
+    stepUp = Color(0xFF6BA6F5),
+    stepDown = Color(0xFFF08079)
 )
 
 object Concrete {
@@ -106,6 +112,8 @@ object Concrete {
     val NeonDeep get() = palette.neonDeep
     val Accent get() = palette.accent
     val AccentSoft get() = palette.accentSoft
+    val StepUp get() = palette.stepUp
+    val StepDown get() = palette.stepDown
 
     /** store.themeMode에 따라 팔레트 적용 */
     fun apply(themeMode: String, systemDark: Boolean) {
