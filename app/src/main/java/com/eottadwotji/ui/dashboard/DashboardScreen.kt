@@ -504,16 +504,25 @@ private fun PhotoTile(
                 Text("사진 보기", style = AppType.Micro, color = Color.White)
             }
         } else {
-            // 주차된 내 차 사진 (천장 조명 + 구획선이 사진에 들어 있다)
+            // 주차된 내 차 사진 — Fit으로 사진을 자르지 않는다 (v5.3.1).
+            // Crop은 좌우를 잘라 차 앞부분만 확대돼 보였다. 여백은 주차장 바닥 톤으로 채워
+            // 사진 전체(천장 조명 · 구획선 · 차)가 한눈에 들어오게 한다.
             if (carBitmap != null) {
-                Image(
-                    bitmap = carBitmap.asImageBitmap(),
-                    contentDescription = "내 차",
-                    contentScale = ContentScale.Crop,
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer { alpha = if (parked) 1f else 0.72f }
-                )
+                        .background(Color(0xFF17191D)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        bitmap = carBitmap.asImageBitmap(),
+                        contentDescription = "내 차",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = if (parked) 1f else 0.72f }
+                    )
+                }
             } else {
                 Box(
                     modifier = Modifier

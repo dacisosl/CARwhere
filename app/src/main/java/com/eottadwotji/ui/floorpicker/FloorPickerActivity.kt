@@ -25,6 +25,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -56,6 +59,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -439,9 +443,9 @@ private fun SheetTitle(title: String, onBack: (() -> Unit)?) {
 }
 
 /**
- * 기록 카드 — 스케치 + v5.2 배치.
- * 헤더: "위치정보" + 위치 칩 / "⊕ 위치 등록" …… [📷 사진]
- * 본문: ◁ [층 표지판] ▷ + [주차] 큰 버튼 / 메모 한 줄
+ * 기록 카드 — 스케치 + v5.3 격자 배치.
+ * 헤더: "위치정보" + 위치 칩 / "⊕ 위치 등록" …… [📷 사진]   (모두 34dp 높이)
+ * 본문: ◁ [층] ▷ 56dp 한 줄 + 캡션 한 줄, 오른쪽에 두 줄 높이의 [주차] / 메모 한 줄
  */
 @Composable
 private fun RecordCard(
@@ -468,7 +472,7 @@ private fun RecordCard(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // ── 헤더: 위치정보 + 사진 ──
+        // ── 헤더: 위치정보 + 사진 — 칩과 사진 버튼은 같은 높이(34dp)로 한 줄에 맞춘다 ──
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -478,66 +482,99 @@ private fun RecordCard(
             if (lot != null) {
                 Row(
                     modifier = Modifier
-                        .background(Concrete.BgPanel, RoundedCornerShape(16.dp))
-                        .border(1.5.dp, Concrete.Neon, RoundedCornerShape(16.dp))
+                        .height(HEADER_CONTROL_HEIGHT)
+                        .background(Concrete.BgPanel, RoundedCornerShape(17.dp))
+                        .border(1.5.dp, Concrete.Neon, RoundedCornerShape(17.dp))
                         .clickable(onClick = onLocationTap)
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(lot.name, style = AppType.BodySmall, color = Concrete.Neon)
+                    Text(lot.name, style = AppType.BodySmall, color = Concrete.Neon, maxLines = 1)
                     Spacer(Modifier.width(5.dp))
                     Text("▾", style = AppType.Hint, color = Concrete.TextDim)
                 }
             } else {
                 Row(
                     modifier = Modifier
-                        .background(Concrete.BgPanel, RoundedCornerShape(16.dp))
+                        .height(HEADER_CONTROL_HEIGHT)
+                        .background(Concrete.BgPanel, RoundedCornerShape(17.dp))
                         .clickable(onClick = onLocationTap)
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("⊕", style = AppType.BodySmall, color = Concrete.Neon)
                     Spacer(Modifier.width(5.dp))
-                    Text("위치 등록", style = AppType.BodySmall, color = Concrete.TextBody)
+                    Text("위치 등록", style = AppType.BodySmall, color = Concrete.TextBody, maxLines = 1)
                 }
             }
             Spacer(Modifier.weight(1f))
             PhotoHeaderButton(uriString = photoUri, onClick = onPhoto)
         }
 
-        // ── 본문: ◁ 층 표지판 ▷ + [주차] ──
+        // ── 본문: ◁ [층] ▷ + [주차] ──
+        // 격자 (v5.3 리디자인): 위 줄은 세 조작(◁·층·▷)이 모두 56dp 높이로 한 선에,
+        // 아래 줄은 각 조작의 캡션(위층·지난번·아래층)이 같은 선에 놓인다.
+        // [주차]는 두 줄을 합친 높이를 그대로 받아(IntrinsicSize.Min) 오른쪽 열을 채운다.
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            StepArrow(
-                symbol = "◁",
-                caption = "위층",
-                enabled = index > 0,
-                onClick = { onFloorIndex(index - 1) }
-            )
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // 층 표지판 — 오른쪽 [주차]가 그린 버튼이므로 여기는 테두리 판 (v5.3)
-                FloorSign(floor = floor, fontSize = 44.sp, outlined = true)
-                floorSuffix(floor)?.let {
-                    Spacer(Modifier.height(4.dp))
-                    Text(it, style = AppType.Micro, color = Concrete.TextSub, maxLines = 1)
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StepArrow(
+                        symbol = "◁",
+                        enabled = index > 0,
+                        onClick = { onFloorIndex(index - 1) }
+                    )
+                    Box(
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // 오른쪽 [주차]가 그린 버튼이므로 층 박스는 테두리 판
+                        FloorSign(
+                            floor = floor,
+                            fontSize = 36.sp,
+                            outlined = true,
+                            modifier = Modifier
+                                .height(STEP_CONTROL_HEIGHT)
+                                .widthIn(min = 84.dp)
+                        )
+                    }
+                    StepArrow(
+                        symbol = "▷",
+                        enabled = index < floors.size - 1,
+                        onClick = { onFloorIndex(index + 1) }
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StepCaption("위층", enabled = index > 0, modifier = Modifier.width(STEP_ARROW_WIDTH))
+                    StepCaption(
+                        floorSuffix(floor) ?: " ",
+                        enabled = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    StepCaption(
+                        "아래층",
+                        enabled = index < floors.size - 1,
+                        modifier = Modifier.width(STEP_ARROW_WIDTH)
+                    )
                 }
             }
-            StepArrow(
-                symbol = "▷",
-                caption = "아래층",
-                enabled = index < floors.size - 1,
-                onClick = { onFloorIndex(index + 1) }
-            )
-            Spacer(Modifier.width(12.dp))
-            // 가장 중요한 버튼 — 큰 자리, 시그니처 그린
+            Spacer(Modifier.width(14.dp))
+            // 가장 중요한 버튼 — 오른쪽 열 전체 높이, 시그니처 그린
             Box(
                 modifier = Modifier
-                    .size(88.dp)
+                    .width(88.dp)
+                    .fillMaxHeight()
                     .background(Concrete.Neon, RoundedCornerShape(14.dp))
                     .clickable(onClick = onSave),
                 contentAlignment = Alignment.Center
@@ -576,9 +613,10 @@ private fun PhotoHeaderButton(uriString: String?, onClick: () -> Unit) {
     }
     Row(
         modifier = Modifier
+            .height(HEADER_CONTROL_HEIGHT)
             .background(Concrete.BgPanel, RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (bitmap != null) {
@@ -607,26 +645,43 @@ private fun PhotoHeaderButton(uriString: String?, onClick: () -> Unit) {
     }
 }
 
+/** 층 스테퍼 화살표 — 44×56 패널 버튼. 캡션은 아래 줄(StepCaption)에서 따로 맞춘다 */
 @Composable
-private fun StepArrow(symbol: String, caption: String, enabled: Boolean, onClick: () -> Unit) {
-    Column(
+private fun StepArrow(symbol: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
         modifier = Modifier
-            .width(44.dp)
+            .width(STEP_ARROW_WIDTH)
+            .height(STEP_CONTROL_HEIGHT)
+            .background(Concrete.BgPanel, RoundedCornerShape(12.dp))
             .clickable(enabled = enabled, onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
         Text(
             symbol,
-            style = AppType.Title.copy(fontSize = 26.sp),
+            style = AppType.Title.copy(fontSize = 22.sp),
             color = if (enabled) Concrete.TextMain else Concrete.Border
-        )
-        Text(
-            caption,
-            style = AppType.Micro,
-            color = if (enabled) Concrete.TextDim else Concrete.Border
         )
     }
 }
+
+/** 스테퍼 아래 줄 캡션 — 한 줄 고정, 가운데 정렬 (줄바꿈으로 높이가 어긋나지 않게) */
+@Composable
+private fun StepCaption(text: String, enabled: Boolean, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = AppType.Micro,
+        color = if (enabled) Concrete.TextDim else Concrete.Border,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        softWrap = false,
+        modifier = modifier
+    )
+}
+
+/** 기록 카드 격자 치수 */
+private val HEADER_CONTROL_HEIGHT = 34.dp
+private val STEP_CONTROL_HEIGHT = 56.dp
+private val STEP_ARROW_WIDTH = 44.dp
 
 /** 메모 한 줄 — 키보드 완료 = 주차, 마이크 = 시스템 음성인식 (v3.6) */
 @Composable
