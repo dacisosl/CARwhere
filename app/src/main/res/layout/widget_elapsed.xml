@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 홈 위젯 경과 시간 (v4.2): Chronometer는 런처가 직접 틱을 그려서 앱이 깨어나지 않는다
+     (배터리 규칙 7 — 위젯은 상태가 바뀔 때만 갱신, 시간은 시스템이 알아서 흘려준다).
+     크기·색은 RemoteViews.setTextViewTextSize / setTextColor로 위젯별 지정. -->
+<Chronometer xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_elapsed"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:fontFamily="@font/chakra_petch_bold"
+    android:includeFontPadding="false"
+    android:singleLine="true"
+    android:textColor="#F1EFE9"
+    android:textSize="26sp"
+    android:textStyle="bold" />
