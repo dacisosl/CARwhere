@@ -242,7 +242,12 @@
             </intent-filter>
         </receiver>
 
-        <!-- v2: 홈 위젯 2종 (Glance) — 주차 상태 변경 시에만 push 갱신 -->
+        <!-- v5.1: 위젯 분 틱 — 주차 중에만 1분 간격 부정확 알람으로 경과시간(H:MM) 갱신 -->
+        <receiver
+            android:name=".ui.widget.WidgetTickReceiver"
+            android:exported="false" />
+
+        <!-- v2: 홈 위젯 2종 (Glance) — 주차 상태 변경 + 분 틱 때 갱신 -->
         <receiver
             android:name=".ui.widget.PillWidgetReceiver"
             android:exported="false">

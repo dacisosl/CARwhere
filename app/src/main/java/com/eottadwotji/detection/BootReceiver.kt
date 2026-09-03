@@ -18,6 +18,8 @@ class BootReceiver : BroadcastReceiver() {
             Intent.ACTION_MY_PACKAGE_REPLACED -> {
                 // 주차 중이면 캡슐 재게시, 아니면 아무 것도 안 함
                 ParkingNotification.syncParkedNotification(context)
+                // 위젯 다시 그리기 + 분 틱 알람 복구 (재부팅으로 알람은 모두 사라진다 — v5.1)
+                com.eottadwotji.ui.widget.WidgetUpdater.update(context)
             }
         }
     }
