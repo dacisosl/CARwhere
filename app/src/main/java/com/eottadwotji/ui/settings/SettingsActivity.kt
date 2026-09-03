@@ -192,7 +192,7 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, embedded: Boolean = false) {
                 SettingRow("내 차 블루투스", myCarName ?: "미지정") { activeSheet = "car" }
                 SettingRow(
                     "바텀시트 팝업 (다른 앱 위)",
-                    if (overlayGranted) "켜짐" else "꺼짐 — 알림으로 대체"
+                    if (overlayGranted) "켜짐" else "알림으로 대체"
                 ) {
                     runCatching {
                         context.startActivity(
