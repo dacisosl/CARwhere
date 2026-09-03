@@ -32,8 +32,11 @@ import com.eottadwotji.ui.floorpicker.FloorPickerActivity
  * 채널은 v2로 재생성: 예전 설치에서 굳어진 채널 중요도/배지 설정을 리셋하고
  * setShowBadge(false)로 런처 앱 아이콘 배지(점)를 막는다.
  *
- * 상태바 아이콘 색: Android는 모든 앱의 상태바 아이콘을 강제로 단색(흰/검) 처리한다.
- * 형광그린은 OS 제약상 상태바에선 불가능 — 대신 알림창에서 colorized로 형광 배경.
+ * 상태바 아이콘 색 (v4.3): 순정 안드로이드는 알파 실루엣만 취해 강제 단색으로 그리고,
+ * 삼성 One UI 등 일부 기기는 컬러 비트맵을 원본 색으로 보존한다. 그래서 아이콘은
+ * "색 표지판 + 글자를 뚫어낸(cutout)" 구조로 만든다 — 색이 보존되면 층별 컬러 표지판,
+ * 강제 단색이면 흰 표지판 위 글자로 어느 쪽에서도 읽힌다.
+ * 층마다 색을 달리해(floorColor) B1과 B2가 한눈에 구분된다.
  */
 object ParkingNotification {
 
@@ -48,6 +51,38 @@ object ParkingNotification {
     private const val FLOOR_PICKER_TIMEOUT_MS = 10_000L
 
     private const val NEON = 0xFFAEEA00.toInt()
+
+    /**
+     * 층별 색 (v4.3) — "지금 몇 층?"을 색만 보고 알게 하려는 것.
+     *
+     * 앱의 기존 위계를 그대로 확장한다: 지상은 따뜻한 앰버(주광), 지하는 차가운 라임 계열
+     * (FloorWheel의 지상 앰버 / 지하 네온과 같은 언어).
+     * 깊어질수록 색상(hue)을 옮기고 명도는 높게 유지한다 — 어두운 상태바에서 어두운 색은
+     * 아예 보이지 않으므로, 구분은 명도가 아니라 색상으로 준다.
+     *
+     *   지하  B1 라임 → B2 연두 → B3 초록 → B4 시안
+     *   지상  1F 앰버 → 2F 오렌지 → 3F 진한 주황 → 4F 코랄
+     */
+    private val BASEMENT_TONES = intArrayOf(
+        0xFFC6FF00.toInt(), // B1 라임
+        0xFF76FF03.toInt(), // B2 연두
+        0xFF00E676.toInt(), // B3 초록
+        0xFF00E5FF.toInt()  // B4 시안
+    )
+    private val GROUND_TONES = intArrayOf(
+        0xFFFFD54F.toInt(), // 1F 앰버
+        0xFFFFAB40.toInt(), // 2F 오렌지
+        0xFFFF7043.toInt(), // 3F 진한 주황
+        0xFFFF5252.toInt()  // 4F 코랄
+    )
+
+    /** 층 이름 → 표지판 색. 층을 모르면(P) 기본 형광. 범위를 넘는 층은 가장 깊은 색 유지 */
+    internal fun floorColor(floor: String?): Int {
+        if (floor.isNullOrBlank()) return NEON
+        val number = floor.filter { it.isDigit() }.toIntOrNull() ?: return NEON
+        val tones = if (floor.startsWith("B")) BASEMENT_TONES else GROUND_TONES
+        return tones[(number - 1).coerceIn(0, tones.size - 1)]
+    }
 
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
@@ -155,7 +190,8 @@ object ParkingNotification {
         startedAtMs: Long
     ): Notification {
         val statusText = if (floor != null) "P·$floor" else "P"
-        val icon = IconCompat.createWithBitmap(renderTextIcon(floor ?: "P"))
+        val tone = floorColor(floor)
+        val icon = IconCompat.createWithBitmap(renderTextIcon(floor ?: "P", tone))
 
         val store = com.eottadwotji.data.ParkingStore(context)
         val detailLine = listOfNotNull(
@@ -181,7 +217,7 @@ object ParkingNotification {
                 NotificationCompat.BigTextStyle()
                     .bigText("$detailLine\n탭하면 상세 보기 · 출발하면 자동으로 사라져요")
             )
-            .setColor(NEON)
+            .setColor(tone) // 알림창 colorized 배경도 층 색으로 — 상태바와 같은 신호
             .setColorized(true) // 포그라운드 서비스 알림 → 알림창 배경 자체가 형광그린
             .setContentIntent(mainActivityIntent(context))
             .setOngoing(true)          // 스와이프로 지워지지 않음
@@ -201,34 +237,47 @@ object ParkingNotification {
     }
 
     /**
-     * 형광 필 스타일 상태바 아이콘: 꽉 찬 캡슐에서 글자를 뚫어낸(cutout) 비트맵.
-     * 상태바는 시스템이 단색 처리하지만 필 실루엣이라 훨씬 눈에 띄고,
-     * 알림창/잠금화면에서는 colorized 형광그린 배경 위에 얹힌다.
+     * 상태바 아이콘 — 주차장 층 표지판 (v4.3, 사용자 첨부 디자인 반영).
+     *
+     * 완전한 캡슐이 아니라 모서리만 살짝 둥근 사각 표지판으로 바꾸고, 캔버스를 거의 꽉
+     * 채운 뒤 글자를 실측해서 표지판 안쪽을 최대한 채운다 (이전 고정 58f 대비 크게).
+     *
+     * 글자는 색을 칠하는 대신 투명하게 뚫는다(cutout). 첨부 디자인은 회색 판 위 초록
+     * 글자지만, 글자에 색을 칠하면 알파 실루엣만 취하는 기기에서 판이 통째로 하얀 덩어리가
+     * 되어 층을 읽을 수 없다. 뚫어내면 색 보존 기기에선 컬러 표지판 + 어두운 글자,
+     * 강제 단색 기기에선 흰 표지판 + 글자로 양쪽 모두 읽힌다.
      */
-    private fun renderTextIcon(text: String): Bitmap {
-        val size = 96
+    private fun renderTextIcon(text: String, tint: Int = NEON): Bitmap {
+        val size = 144 // 상태바에서 축소되므로 해상도를 올려 글자 획을 선명하게
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        // v3.8: 캔버스를 거의 꽉 채우는 캡슐 — 상태바에서 시계 숫자 높이만큼 크게 보인다
-        val pillTop = 6f
-        val pillBottom = size - 6f
-        val radius = (pillBottom - pillTop) / 2f // 반지름 = 높이 절반 → 완전한 캡슐
-        // v3.9.3: 형광그린 캡슐 — 시스템은 "회색조" 아이콘만 단색 틴트하고,
-        // 컬러 아이콘은 (구버전 호환 경로로) 원본 색 그대로 그린다. 가요 앱 방식.
-        val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = NEON }
-        canvas.drawRoundRect(0f, pillTop, size.toFloat(), pillBottom, radius, radius, pill)
+        val inset = 3f
+        val top = inset
+        val bottom = size - inset
+        val corner = (bottom - top) * 0.22f // 캡슐(0.5)보다 각진 표지판
+        val plate = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tint }
+        canvas.drawRoundRect(0f, top, size.toFloat(), bottom, corner, corner, plate)
 
-        // 글자를 투명하게 뚫기 — 필 위에 글씨가 도드라져 보이는 효과
         val punch = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
             textAlign = Paint.Align.CENTER
-            // 글자 수에 따라 크기 조정 (B3=2자 크게, B12=3자 작게)
-            textSize = if (text.length <= 2) 58f else 44f
             xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
         }
-        val y = size / 2f - (punch.descent() + punch.ascent()) / 2f
-        canvas.drawText(text, size / 2f, y, punch)
+        // 글자 크기를 실측으로 맞춘다 — "B2"든 "B12"든 표지판을 같은 비율로 채운다
+        val bounds = android.graphics.Rect()
+        punch.textSize = 100f
+        punch.getTextBounds(text, 0, text.length, bounds)
+        if (bounds.width() > 0 && bounds.height() > 0) {
+            punch.textSize = 100f * minOf(
+                (bottom - top) * 0.74f / bounds.height(),
+                size * 0.84f / bounds.width()
+            )
+            punch.getTextBounds(text, 0, text.length, bounds)
+        }
+        // 글자의 시각적 중심을 표지판 중심에 맞춘다 (ascent/descent 대신 실제 획 경계)
+        val baseline = (top + bottom) / 2f - (bounds.top + bounds.bottom) / 2f
+        canvas.drawText(text, size / 2f, baseline, punch)
         return bitmap
     }
 
