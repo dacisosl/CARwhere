@@ -1,9 +1,14 @@
 package com.eottadwotji.ui.floorpicker
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
@@ -105,13 +110,24 @@ class FloorPickerActivity : ComponentActivity() {
         const val EXTRA_MANUAL = "manual"
         const val EXTRA_FROM_DETECTION = "from_detection"
 
+        /**
+         * 하차 오탐 취소 (v5.5) — 서비스가 하차 즉시 시트를 띄우므로, 곧 재연결되면
+         * (엔진 재시동·순간 끊김) 이 브로드캐스트로 시트를 닫는다. 앱 내부 전용.
+         */
+        const val ACTION_RETRACT = "com.eottadwotji.RETRACT_SHEET"
+
         private const val SLIDE_UP_MS = 220         // 시트 등장
         private const val LOT_RECHECK_MS = 600L     // 수동 기록 좌표 조회 폴링 간격
         private const val LOT_RECHECK_TRIES = 4     // 폴링 횟수 (총 ~2.4초)
     }
 
+    /** 감지가 띄운 시트만 오탐 취소로 닫는다 (사람이 직접 연 기록은 남긴다) */
+    private var retractReceiver: BroadcastReceiver? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // v5.5: 차를 끄면 화면이 잠겨 있어도 바로 시트가 보이게 (화면은 깨우지 않는다)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) setShowWhenLocked(true)
         // 투명(windowIsTranslucent) 창은 adjustResize가 안 먹는다 —
         // 키보드가 저장 버튼을 가리지 않도록 인셋을 직접 받아 imePadding으로 처리
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -130,11 +146,34 @@ class FloorPickerActivity : ComponentActivity() {
             fetchLocationOnce(store)
         }
 
+        if (fromDetection) registerRetractReceiver()
+
         setContent {
             EottadwotjiTheme {
                 RecordSheet(store = store, onDone = { finish() })
             }
         }
+    }
+
+    private fun registerRetractReceiver() {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == ACTION_RETRACT) finish()
+            }
+        }
+        ContextCompat.registerReceiver(
+            this,
+            receiver,
+            IntentFilter(ACTION_RETRACT),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        retractReceiver = receiver
+    }
+
+    override fun onDestroy() {
+        retractReceiver?.let { runCatching { unregisterReceiver(it) } }
+        retractReceiver = null
+        super.onDestroy()
     }
 
     /** 수동 기록용 좌표 1회 저장 — 감지 경로에서는 서비스가 이미 저장함 */
@@ -166,7 +205,8 @@ class FloorPickerActivity : ComponentActivity() {
             ParkingLotProfile.sortFloors(lot?.floors ?: ParkingLotProfile.DEFAULT_FLOORS)
         }
         val lastFloor = remember(lot) { store.lastFloorForCurrentLocation() }
-        val estimatedFloor = remember { store.estimatedFloor }
+        // v5.5: 시트가 GPS보다 먼저 뜨므로, 위치가 매칭되면 서비스가 다듬은 추정을 다시 읽는다
+        val estimatedFloor = remember(lot) { store.estimatedFloor }
         // 자동감지 정책: 이 위치에서 아직 한 번도 확인 안 한 추정이면 "첫 확인" 엄격 모드
         val strictEstimate = estimatedFloor != null && lot?.pressureCalibrated != true
 

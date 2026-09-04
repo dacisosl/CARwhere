@@ -294,7 +294,7 @@ fun DashboardScreen() {
 
         // ── 테스트: 실기기에서 감지 경로를 그대로 태워 본다 (릴리스에도 노출 — v5.2) ──
         Text(
-            "테스트: 하차 시뮬 (5초 뒤 기록 시트)",
+            "테스트: 하차 시뮬 (기록 시트 바로 띄우기)",
             style = AppType.Micro,
             color = Concrete.TextDim,
             modifier = Modifier

@@ -118,6 +118,9 @@ class ParkingStore(context: Context) {
 
     fun hasActiveParking(): Boolean = prefs.getBoolean(KEY_PARKING_ACTIVE, false)
 
+    /** 이 세션이 사람이 직접 연 기록인가 (감지가 만든 것이 아니라) */
+    fun isParkingManual(): Boolean = prefs.getBoolean(KEY_PARKING_MANUAL, false)
+
     fun parkingStartedAt(): Long = prefs.getLong(KEY_PARKING_STARTED_AT, 0L)
 
     fun setFloor(floor: String) {
@@ -196,6 +199,14 @@ class ParkingStore(context: Context) {
     fun approximateAddress(): String? = prefs.getString(KEY_PARKING_ADDRESS, null)
 
     /** 출차: 기록을 지우지 않고 Room 히스토리로 보관 (대시보드 최근 기록 카드) */
+    /**
+     * 방금 만든 기록을 없던 일로 되돌린다 (v5.5) — expireParking과 달리 히스토리에 남기지 않는다.
+     * 하차 오탐(엔진 재시동·순간 끊김)으로 시트가 떴다가 곧 재연결된 경우에만 쓴다.
+     */
+    fun discardParking() {
+        prefs.edit().putBoolean(KEY_PARKING_ACTIVE, false).apply()
+    }
+
     fun expireParking() {
         if (hasActiveParking()) {
             val record = snapshotRecord()

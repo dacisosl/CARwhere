@@ -13,9 +13,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.provider.Settings
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -47,7 +45,16 @@ import kotlin.math.roundToInt
 class ParkingDetectionService : Service(), SensorEventListener {
 
     companion object {
-        private const val RECONNECT_FILTER_MS = 5_000L
+        /**
+         * 하차 오탐 되돌리기 창 (v5.5).
+         *
+         * v5.4까지는 "5초 기다렸다가 재연결이 없으면 주차 확정"이었다 — 안전하지만 차를 끄고
+         * 5초가 지나야 시트가 떠서 "주차했네? 앱이 켜지네?"라는 체감이 죽었다.
+         * 순서를 뒤집었다: 끊기면 곧바로 확정하고 시트를 띄우고, 이 창 안에 다시 연결되면
+         * (엔진 재시동·순간 끊김) 방금 만든 기록을 히스토리에도 남기지 않고 되돌리고 시트를 닫는다.
+         * 필터가 8초로 늘어난 대신 사용자가 기다리는 시간은 0이 된다.
+         */
+        private const val RECONNECT_RETRACT_MS = 8_000L
 
         /** 층고 약 3m ≈ 0.36hPa (PRD v2 7절) — 아래로 갈수록 기압 증가 */
         private const val PRESSURE_HPA_PER_FLOOR = 0.36f
@@ -85,9 +92,6 @@ class ParkingDetectionService : Service(), SensorEventListener {
             )
         }
     }
-
-    private val handler = Handler(Looper.getMainLooper())
-    private var pendingParkingRunnable: Runnable? = null
 
     // 기압 추정 상태 (주행 세션 한정)
     private var pressureAtDriveStart: Float? = null
@@ -129,23 +133,23 @@ class ParkingDetectionService : Service(), SensorEventListener {
         return START_STICKY
     }
 
-    /** 하차 후보: 5초 안에 재연결이 없으면 진짜 주차로 판정 */
+    /** 하차: 기다리지 않고 바로 확정 — 되돌리기는 재연결 시 onCarConnected가 맡는다 (v5.5) */
     private fun onCarDisconnected() {
-        cancelPendingFilter()
-        pendingParkingRunnable = Runnable {
-            pendingParkingRunnable = null
-            confirmParked()
-        }.also {
-            handler.postDelayed(it, RECONNECT_FILTER_MS)
+        val store = ParkingStore(this)
+        // 이미 이 세션이 잡혀 있으면(중복 브로드캐스트) 시트를 두 번 띄우지 않는다
+        if (store.hasActiveParking() && !store.isParkingManual()) {
+            stopIfNothingToShow()
+            return
         }
+        confirmParked()
     }
 
-    /** 재연결(주행 시작): 필터 취소 + 기존 주차 기록 만료 + 기압 기준점 기록 */
+    /** 재연결(주행 시작): 오탐이면 되돌리고, 진짜 출차면 기록 만료 + 기압 기준점 기록 */
     private fun onCarConnected() {
-        cancelPendingFilter()
-
         val store = ParkingStore(this)
-        if (store.hasActiveParking()) {
+        // 오탐이면 기록을 지우고 시트를 닫는다 — 그게 아니면 진짜 출차다
+        val retracted = retractIfFalseAlarm(store)
+        if (!retracted && store.hasActiveParking()) {
             store.expireParking()
             // 출차하면 캡슐 제거 (기록은 히스토리에 보관 — v3.9.5부터 항상 자동)
             ParkingNotification.dismissParkedNotification(this)
@@ -158,20 +162,52 @@ class ParkingDetectionService : Service(), SensorEventListener {
         stopIfNothingToShow()
     }
 
-    /** 주차 확정: GPS 좌표 1회 저장 → 기압 추정(위치 보정 반영) → 바텀시트(또는 알림 폴백) */
+    /**
+     * 하차 오탐 되돌리기 — 감지가 방금(RECONNECT_RETRACT_MS 안에) 만들었고 사용자가 층을
+     * 고르지 않은 기록이면, 히스토리에도 남기지 않고 지우고 떠 있는 시트를 닫는다.
+     * 사람이 직접 연 기록이나 이미 층을 고른 기록은 건드리지 않는다.
+     */
+    private fun retractIfFalseAlarm(store: ParkingStore): Boolean {
+        if (!store.hasActiveParking() || store.isParkingManual()) return false
+        if (store.currentFloor() != null) return false
+        val age = System.currentTimeMillis() - store.parkingStartedAt()
+        if (age !in 0..RECONNECT_RETRACT_MS) return false
+
+        store.discardParking()
+        ParkingNotification.dismissParkedNotification(this)
+        // 떠 있는 기록 시트 닫기 (감지가 띄운 것만 — 매니페스트 미등록, 앱 내부 전용 브로드캐스트)
+        sendBroadcast(
+            Intent(FloorPickerActivity.ACTION_RETRACT).setPackage(packageName)
+        )
+        WidgetUpdater.update(this)
+        return true
+    }
+
+    /**
+     * 주차 확정 (v5.5 — 체감 속도 우선).
+     *
+     * 시트를 GPS보다 먼저 띄운다: lastLocation 콜백을 기다리면 수백 ms~수 초가 더 걸리는데,
+     * 좌표는 시트가 뜬 뒤에 채워도 된다 — 시트가 위치 매칭을 잠시 폴링해서 등록된 주차장이면
+     * 그 층 구성으로 바뀐다(FloorPickerActivity.LOT_RECHECK_*). 기압 추정도 두 번 계산한다:
+     * 먼저 지형 보정 없이(즉시), 좌표가 오면 그 위치의 보정을 반영해 다듬는다.
+     */
     private fun confirmParked() {
         val store = ParkingStore(this)
         store.startParking(timestampMs = System.currentTimeMillis())
 
-        // lastLocation 1회 조회 후 팝업 — 좌표가 있어야 프로필(지난번 층·기압 보정) 매칭이 된다.
-        // 실패해도 팝업은 반드시 떠야 하므로 completion 콜백에서 이어간다.
-        fetchLastLocationOnce(store) {
-            // 기압 추정은 위치 매칭 후에 — 등록된 위치면 학습된 지형 보정을 더한다 (v3.7)
-            store.estimatedFloor = estimateFloorFromPressure(store)
-            stopPressureSampling()
-            showFloorPicker(store)
-        }
+        // ① 보정 없는 기압 추정 → 시트 즉시 표시
+        store.estimatedFloor = estimateFloorFromPressure(store)
+        showFloorPicker(store)
         WidgetUpdater.update(this)
+
+        // ② 좌표는 뒤따라 저장 — 등록된 위치면 지형 보정을 반영해 추정을 다듬는다 (v3.7)
+        fetchLastLocationOnce(store) {
+            if (store.hasActiveParking() && store.currentFloor() == null) {
+                store.estimatedFloor = estimateFloorFromPressure(store)
+            }
+            stopPressureSampling()
+            stopIfNothingToShow()
+        }
     }
 
     /**
@@ -238,16 +274,16 @@ class ParkingDetectionService : Service(), SensorEventListener {
             )
             WidgetUpdater.update(this)
         }
-        stopIfNothingToShow()
+        // 서비스 종료는 좌표 콜백까지 끝난 뒤 confirmParked가 판단한다 (v5.5)
     }
 
     /**
      * 서비스가 계속 떠 있어야 할 이유가 없으면 종료 (v3.9.5).
-     * 남는 이유: ① 하차 판정(5초 재연결 필터) 대기 ② 주행 중 기압 샘플링.
+     * 남는 이유: 주행 중 기압 샘플링 (v5.5부터 하차 판정 대기 시간은 없다).
      * 주차 캡슐은 서비스와 분리된 일반 알림이라 종료와 무관하게 유지된다.
      */
     private fun stopIfNothingToShow() {
-        if (pendingParkingRunnable != null || pressureRegistered) return
+        if (pressureRegistered) return
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -292,15 +328,9 @@ class ParkingDetectionService : Service(), SensorEventListener {
 
     // ── 정리 ────────────────────────────────────────────────
 
-    private fun cancelPendingFilter() {
-        pendingParkingRunnable?.let { handler.removeCallbacks(it) }
-        pendingParkingRunnable = null
-    }
-
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        cancelPendingFilter()
         stopPressureSampling()
         runCatching { unregisterReceiver(dynamicReceiver) }
         super.onDestroy()
