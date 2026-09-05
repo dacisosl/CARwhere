@@ -6,7 +6,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
-import android.view.View
 import android.widget.RemoteViews
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -48,8 +47,8 @@ import java.util.Locale
 /**
  * 홈 위젯 2종 — 층수 + 경과 시간(시간:분) (v5.2).
  *
- * - 2x1: 한 줄 [B3] [3:14] (+ 넓으면 "주차 16:54 · 집"). 세로로 쌓지 않아 낮은 셀에서도
- *   위아래가 잘리지 않는다.
+ * - 2x1: [B3] | [3:14 / 집 · B구역] — 층수·경과시간·주차 위치 세 정보를 항상 보여준다 (v5.6).
+ *   층수는 왼쪽 열, 오른쪽 열에 시간(위)과 위치(아래). 넓으면 위치 줄에 주차 시각까지 붙는다.
  * - 1x1: 층수 위, 경과 시간 아래.
  *
  * v5.2 — 글씨를 더 두껍게: 본문을 Glance Text에서 RemoteViews(TextView)로 바꿨다.
@@ -129,10 +128,10 @@ class GaugeWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = GaugeWidget()
 }
 
-/** 2x1 필 위젯 — 한 줄: 층수 · 경과시간 (넓으면 + 주차 시각·장소) */
+/** 2x1 필 위젯 — [층수] | [경과시간 / 주차 위치] (v5.6) */
 class PillWidget : GlanceAppWidget() {
 
-    /** 폭에 따라 정보량을 바꾼다: 좁으면 층수+시간만, 넓으면 주차 시각·장소까지 */
+    /** 폭에 따라 위치 줄의 정보량만 바꾼다: 좁으면 위치·구역, 넓으면 주차 시각까지 (v5.6) */
     override val sizeMode: SizeMode = SizeMode.Responsive(
         setOf(DpSize(110.dp, 40.dp), DpSize(200.dp, 40.dp))
     )
@@ -142,16 +141,24 @@ class PillWidget : GlanceAppWidget() {
         val parked = store.hasActiveParking()
         val floor = store.currentFloor()
         val startedAt = store.parkingStartedAt()
-        val lotName = store.currentLot()?.name
+        // 위치 한 줄: 등록된 주차장 이름 > 대략 주소, 있으면 구역까지 (v5.6)
+        val place = store.currentLot()?.name ?: store.approximateAddress()
+        val zone = store.currentZone()
 
         provideContent {
-            PillContent(parked, floor, startedAt, lotName)
+            PillContent(parked, floor, startedAt, place, zone)
         }
     }
 }
 
 @Composable
-private fun PillContent(parked: Boolean, floor: String?, startedAtMs: Long, lotName: String?) {
+private fun PillContent(
+    parked: Boolean,
+    floor: String?,
+    startedAtMs: Long,
+    place: String?,
+    zone: String?
+) {
     val context = LocalContext.current
     val wide = LocalSize.current.width >= 200.dp
 
@@ -170,16 +177,8 @@ private fun PillContent(parked: Boolean, floor: String?, startedAtMs: Long, lotN
             val views = RemoteViews(context.packageName, R.layout.widget_pill).apply {
                 setTextViewText(R.id.w_floor, floor ?: "P")
                 setTextViewText(R.id.w_elapsed, formatElapsedHm(startedAtMs))
-                if (wide) {
-                    setViewVisibility(R.id.w_sub, View.VISIBLE)
-                    setTextViewText(
-                        R.id.w_sub,
-                        listOfNotNull("주차 ${formatTime(startedAtMs)}", lotName?.take(10))
-                            .joinToString(" · ")
-                    )
-                } else {
-                    setViewVisibility(R.id.w_sub, View.GONE)
-                }
+                // 위치는 좁은 셀에서도 항상 — 길면 말줄임(층수·시간은 절대 안 잘림)
+                setTextViewText(R.id.w_sub, placeLine(place, zone, startedAtMs, wide))
             }
             AndroidRemoteViews(remoteViews = views, modifier = GlanceModifier.fillMaxSize())
         } else {
@@ -254,6 +253,20 @@ private fun GaugeContent(parked: Boolean, floor: String?, startedAtMs: Long) {
             }
         }
     }
+}
+
+/**
+ * 2x1 위치 줄 — "집 · B구역". 위치를 모르면 시각이라도 남긴다.
+ * 넓은 셀(200dp+)에서는 주차 시각을 뒤에 덧붙인다.
+ */
+private fun placeLine(place: String?, zone: String?, startedAtMs: Long, wide: Boolean): String {
+    val parts = listOfNotNull(
+        place?.takeIf { it.isNotBlank() },
+        zone?.takeIf { it.isNotBlank() }
+    ).toMutableList()
+    if (parts.isEmpty()) parts += "위치 저장됨"
+    if (wide && startedAtMs > 0L) parts += "주차 ${formatTime(startedAtMs)}"
+    return parts.joinToString(" · ")
 }
 
 /** 경과 시간 "시간:분" — 3:14 / 40:52. 24시간을 넘어도 시간이 그대로 커진다 */

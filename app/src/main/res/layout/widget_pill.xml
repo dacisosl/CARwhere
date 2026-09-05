@@ -1,53 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  2x1 위젯 본문 (v5.2) — 한 줄: [층수] [경과시간] [주차 시각·장소].
+  2x1 위젯 본문 (v5.6) — [층수] | [경과시간 / 주차 위치].
 
-  왜 RemoteViews인가: Glance Text는 Bold가 최대 굵기라 "더 두껍게" 요구를 못 채운다.
-  네이티브 TextView는 sans-serif-black을 쓸 수 있어 가독성이 확실히 올라간다.
-  ellipsize 없음 + maxLines=1 + tnum(고정폭 숫자)로 잘림·흔들림을 막는다.
+  세 정보(층수·경과시간·위치)를 항상 보여준다. v5.5까지는 한 줄에 나란히 놓아 좁은 셀에서
+  위치 줄이 사라졌다 → 층수는 왼쪽 열, 오른쪽 열에 경과시간(위)과 위치(아래)를 쌓았다.
+  층수·시간은 절대 잘리지 않고(ellipsize=none), 위치만 길면 말줄임한다.
+
+  왜 RemoteViews인가: Glance Text는 Bold가 최대 굵기라 "더 두껍게"를 못 채운다.
+  네이티브 TextView는 Pretendard Black을 쓸 수 있어 가독성이 확실히 올라간다.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp">
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
 
     <TextView
         android:id="@+id/w_floor"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginEnd="12dp"
         android:ellipsize="none"
         android:fontFamily="@font/pretendard_black"
         android:includeFontPadding="false"
         android:maxLines="1"
         android:textColor="#2F6B4F"
-        android:textSize="24sp" />
-
-    <TextView
-        android:id="@+id/w_elapsed"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:ellipsize="none"
-        android:fontFamily="@font/pretendard_black"
-        android:fontFeatureSettings="tnum"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:textColor="#9E4A5C"
         android:textSize="30sp" />
 
-    <TextView
-        android:id="@+id/w_sub"
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
         android:layout_weight="1"
-        android:ellipsize="end"
-        android:fontFamily="@font/pretendard_semibold"
-        android:includeFontPadding="false"
-        android:maxLines="2"
-        android:textColor="#6B7380"
-        android:textSize="11sp" />
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/w_elapsed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="none"
+            android:fontFamily="@font/pretendard_black"
+            android:fontFeatureSettings="tnum"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="#9E4A5C"
+            android:textSize="24sp" />
+
+        <TextView
+            android:id="@+id/w_sub"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/pretendard_semibold"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="#6B7380"
+            android:textSize="12sp" />
+    </LinearLayout>
 </LinearLayout>
