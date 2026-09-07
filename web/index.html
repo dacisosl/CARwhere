@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>어따뒀지 — 아이폰용</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="description" content="주차한 층과 위치를 3초에 기록하고 0초에 확인. 아이폰은 홈 화면에 추가해서 앱처럼 쓰세요.">
+<meta name="theme-color" content="#F3F4F2">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="어따뒀지">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<style>
+  /* v5 팔레트 — 안드로이드 앱과 같은 색·서체 */
+  :root{
+    --bg:#F3F4F2; --card:#FFFFFF; --panel:#EEF0EE; --border:#E1E1E2;
+    --dim:#9AA0A8; --sub:#6B7380; --body:#2F333A; --ink:#17191D;
+    --green:#2F6B4F; --burg:#9E4A5C; --burg-soft:#F5EBEE;
+    --up:#1A73E8; --down:#D93B3B;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --safe-b:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--body);font-family:var(--sans);
+    font-size:14px;line-height:1.5;-webkit-text-size-adjust:100%;
+    padding-top:env(safe-area-inset-top,0px);
+    overscroll-behavior:none;
+  }
+  button{font-family:inherit;border:0;background:none;color:inherit;padding:0;cursor:pointer}
+  input,textarea{font-family:inherit;font-size:15px}
+
+  /* ── 셸 ── */
+  #app{display:flex;flex-direction:column;height:100dvh}
+  .screen{flex:1;overflow-y:auto;padding:14px 16px 8px;display:none;-webkit-overflow-scrolling:touch}
+  .screen.on{display:flex;flex-direction:column}
+
+  .tabbar{
+    display:flex;border-top:1px solid var(--border);background:var(--card);
+    padding-bottom:var(--safe-b);flex:none;
+  }
+  .tabbar button{flex:1;padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:3px;
+    font-size:11px;font-weight:600;color:var(--dim);position:relative}
+  .tabbar button.on{color:var(--green)}
+  .tabbar button.on::before{content:"";position:absolute;top:0;width:26px;height:3px;border-radius:0 0 3px 3px;background:var(--green)}
+  .tabbar svg{width:22px;height:22px;fill:currentColor}
+
+  /* ── 공용 ── */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;
+    box-shadow:0 1px 2px rgba(23,25,29,.05)}
+  .hdr{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex:none}
+  .logo{display:flex;align-items:center;gap:7px}
+  .pbadge{background:var(--green);color:#fff;font-weight:900;font-size:15px;
+    border-radius:5px;padding:2px 7px;line-height:1.25}
+  .wm{font-weight:900;font-size:22px;color:var(--ink);letter-spacing:-.5px}
+  .ios-tag{margin-left:auto;font-size:10px;font-weight:700;color:var(--green);
+    background:#E9EFEB;border-radius:20px;padding:3px 9px}
+  .seclbl{font-size:12px;font-weight:600;color:var(--sub);letter-spacing:.5px;margin:0 0 6px 2px}
+  .hint{font-size:12px;color:var(--dim)}
+  .micro{font-size:10px;color:var(--dim)}
+
+  .banner{display:flex;align-items:center;gap:10px;padding:11px 14px;margin-bottom:10px;flex:none}
+  .banner span{flex:1;font-size:13px;color:var(--body)}
+  .banner button{font-size:13px;font-weight:700;color:var(--green);white-space:nowrap}
+  .banner .x{color:var(--dim);font-size:16px;font-weight:400;padding:0 2px}
+
+  /* ── 홈: 경과시간 바 ── */
+  .bar{display:flex;align-items:center;padding:11px 16px;margin-bottom:10px;flex:none}
+  .bar .l{flex:1;min-width:0}
+  .bar .num{font-weight:900;font-size:34px;color:var(--burg);
+    font-variant-numeric:tabular-nums;line-height:1;letter-spacing:-1px}
+  .bar.idle .num{color:var(--dim);font-size:22px}
+  .depart{margin-left:14px;padding:8px 12px;border-radius:11px;background:var(--panel);
+    font-size:12px;font-weight:700;color:var(--sub);flex:none}
+
+  /* ── 홈: 층수 + 사진 타일 ── */
+  .tiles{display:grid;grid-template-columns:.62fr 1fr;gap:10px;height:148px;margin-bottom:10px;flex:none}
+  .fcell{display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .fnum{font-weight:900;font-size:62px;color:var(--green);line-height:1;letter-spacing:-2px}
+  .fnum.off{color:var(--dim)}
+  .fnum.small{font-size:44px}
+  .fcap{font-size:10px;color:var(--dim);margin-top:3px}
+  .ptile{position:relative;overflow:hidden;border-radius:16px;background:var(--ink)}
+  .ptile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
+  .ptile #carart{opacity:.72}
+  .ptile.parked #carart{opacity:1}
+  .ptile .chip{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);
+    background:rgba(0,0,0,.6);color:#fff;font-size:10px;font-weight:600;
+    padding:3px 9px;border-radius:10px;white-space:nowrap;display:flex;align-items:center;gap:4px}
+  .ptile svg{width:12px;height:12px;fill:#fff}
+
+  /* ── 홈: 지도 ── */
+  .mapcard{flex:1;min-height:150px;display:flex;flex-direction:column;overflow:hidden;padding:12px 0}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:0 14px 10px;flex:none;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip-b{flex:none;font-size:13px;font-weight:600;color:var(--body);background:var(--panel);
+    border-radius:16px;padding:7px 13px;white-space:nowrap}
+  .chip-b.on{color:var(--green);border:1.5px solid var(--green);padding:5.5px 11.5px}
+  #map{flex:1;margin:0 12px;border-radius:12px;overflow:hidden;background:#E8EAE6;
+    min-height:120px;position:relative}
+  #tiles,#pins{position:absolute;inset:0}
+  #tiles img{position:absolute;width:256px;height:256px;user-select:none;-webkit-user-drag:none}
+  .pin{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;
+    justify-content:center;border-radius:50%;border:3px solid #fff;
+    box-shadow:0 1px 4px rgba(0,0,0,.4);color:#fff;font-weight:900;font-size:13px}
+  .pin.car{width:30px;height:30px;background:var(--ink)}
+  .pin.me{width:16px;height:16px;background:var(--up)}
+  .pin.lot{width:24px;height:24px;background:var(--green);font-size:11px}
+  .zoom{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:6px;z-index:3}
+  .zoom button{width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.94);
+    color:var(--ink);font-size:16px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .map-msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    text-align:center;padding:0 24px;font-size:12px;color:var(--sub);background:#E8EAE6;z-index:2}
+  .osm{position:absolute;right:5px;top:4px;font-size:9px;color:#5a5f66;background:rgba(255,255,255,.7);
+    padding:1px 5px;border-radius:4px;z-index:3}
+  .mfoot{display:flex;align-items:center;gap:8px;padding:10px 16px 0;flex:none}
+  .dist{font-size:13px;font-weight:700;color:var(--ink)}
+  .mfoot button{margin-left:auto;font-size:13px;font-weight:700;color:var(--green)}
+
+  /* ── 기록 시트 ── */
+  .dim{position:fixed;inset:0;background:rgba(23,25,29,.45);opacity:0;pointer-events:none;
+    transition:opacity .2s;z-index:40}
+  .dim.on{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--bg);
+    border-radius:20px 20px 0 0;padding:8px 16px calc(16px + var(--safe-b));
+    transform:translateY(102%);transition:transform .22s cubic-bezier(.2,.8,.2,1);
+    max-height:92dvh;overflow-y:auto}
+  .sheet.on{transform:translateY(0)}
+  .handle{width:38px;height:4px;border-radius:2px;background:var(--border);margin:2px auto 12px}
+  .rc{padding:16px}
+  .rc-top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .rc-top .lbl{font-size:12px;font-weight:600;color:var(--sub);letter-spacing:.5px}
+  .lotchip{height:34px;display:flex;align-items:center;gap:5px;padding:0 12px;border-radius:17px;
+    background:var(--panel);border:1.5px solid var(--green);color:var(--green);
+    font-size:13px;font-weight:600;max-width:44vw;overflow:hidden;white-space:nowrap}
+  .lotchip.none{border:0;color:var(--body);padding:0 13px}
+  .photobtn{height:34px;margin-left:auto;display:flex;align-items:center;gap:6px;padding:0 11px;
+    border-radius:10px;background:var(--panel);font-size:13px;font-weight:600;color:var(--body)}
+  .photobtn svg{width:17px;height:17px;fill:var(--sub)}
+  .photobtn img{width:22px;height:22px;border-radius:5px;object-fit:cover}
+
+  .step{display:flex;align-items:stretch;gap:14px}
+  .stepcol{flex:1;min-width:0}
+  .steprow{display:flex;align-items:center}
+  .arrow{width:44px;height:56px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    font-weight:900;font-size:22px;flex:none}
+  .arrow.up{background:rgba(26,115,232,.12);border:1.5px solid rgba(26,115,232,.45);color:var(--up)}
+  .arrow.down{background:rgba(217,59,59,.12);border:1.5px solid rgba(217,59,59,.45);color:var(--down)}
+  .arrow.off{background:var(--panel);border:0;color:var(--border)}
+  .fsign{flex:1;margin:0 8px;height:56px;border-radius:13px;background:var(--card);
+    border:2px solid var(--green);color:var(--green);font-weight:900;font-size:36px;
+    display:flex;align-items:center;justify-content:center;letter-spacing:-1px}
+  .caps{display:flex;align-items:center;margin-top:6px}
+  .caps .c{font-size:12px;font-weight:600;text-align:center;white-space:nowrap}
+  .caps .c.up{width:44px;color:var(--up)}
+  .caps .c.down{width:44px;color:var(--down)}
+  .caps .c.mid{flex:1;font-size:10px;font-weight:400;color:var(--dim)}
+  .caps .c.off{color:var(--border)}
+  .park{width:88px;border-radius:14px;background:var(--green);color:#fff;
+    font-weight:900;font-size:22px;display:flex;align-items:center;justify-content:center;flex:none}
+  .memo{display:flex;align-items:center;gap:8px;margin-top:14px;background:var(--panel);
+    border-radius:12px;padding:11px 13px}
+  .memo input{flex:1;border:0;background:none;outline:none;color:var(--ink)}
+  .memo input::placeholder{color:var(--dim)}
+  .warn{font-size:12px;color:var(--burg);text-align:center;margin-top:12px}
+
+  /* ── 리스트(위치관리·기록) ── */
+  .row{display:flex;align-items:center;gap:12px;padding:13px 14px;margin-bottom:8px}
+  .row .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+  .row .nm{font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .sb{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sign-s{background:var(--green);color:#fff;font-weight:900;font-size:15px;
+    border-radius:5px;padding:3px 7px;flex:none;line-height:1.2}
+  .sign-s.gray{background:var(--panel);color:var(--dim)}
+  .tag{font-size:10px;font-weight:700;color:var(--burg);background:var(--burg-soft);
+    border-radius:20px;padding:3px 8px;flex:none}
+  .del{color:var(--dim);font-size:13px;font-weight:600;flex:none}
+  .addbtn{width:100%;padding:13px;border-radius:14px;border:1.5px dashed var(--border);
+    color:var(--green);font-weight:700;margin-bottom:8px;background:var(--card)}
+  .empty{text-align:center;color:var(--dim);font-size:13px;padding:28px 10px}
+
+  .pk-opt{width:100%;text-align:left;padding:13px 14px;border-radius:12px;background:var(--panel);
+    font-size:15px;font-weight:600;color:var(--ink);margin-bottom:8px}
+  .pk-opt.sel{background:var(--card);border:1.5px solid var(--green);color:var(--green)}
+  .bigbtn{width:100%;padding:15px;border-radius:14px;background:var(--green);color:#fff;
+    font-weight:900;font-size:17px;margin-top:4px}
+  .ghost{width:100%;padding:13px;border-radius:14px;background:var(--card);
+    border:1px solid var(--border);color:var(--body);font-weight:700;margin-top:8px}
+  .about p{font-size:13px;color:var(--body);margin:0 0 9px}
+  .about b{color:var(--ink)}
+  .about ol{margin:6px 0 0;padding-left:20px;font-size:13px}
+  .about li{margin-bottom:5px}
+  .toast{position:fixed;left:50%;bottom:calc(74px + var(--safe-b));transform:translate(-50%,14px);
+    background:var(--ink);color:#fff;font-size:13px;font-weight:600;padding:10px 16px;
+    border-radius:22px;opacity:0;pointer-events:none;transition:all .2s;z-index:60;white-space:nowrap}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ─────────── 홈 ─────────── -->
+  <section class="screen on" id="s-home">
+    <div class="hdr">
+      <div class="logo"><span class="pbadge">P</span><span class="wm">어따뒀지</span></div>
+      <span class="ios-tag">아이폰판</span>
+    </div>
+
+    <div class="card banner" id="a2hs" hidden>
+      <span><b>홈 화면에 추가</b>하면 앱처럼 열려요 — 사파리 아래 공유 버튼 → "홈 화면에 추가"</span>
+      <button class="x" id="a2hs-x">✕</button>
+    </div>
+
+    <div class="card bar" id="bar">
+      <div class="l"><div class="seclbl" style="margin:0">경과시간</div><div class="hint" id="bar-sub">주차 기록이 없어요</div></div>
+      <div class="num" id="elapsed">—</div>
+      <button class="depart" id="depart" hidden>출차</button>
+    </div>
+
+    <div class="tiles">
+      <button class="fcell" id="floor-cell">
+        <span class="fnum off" id="fnum">—</span>
+        <span class="fcap" id="fcap">탭해서 기록</span>
+      </button>
+      <button class="card ptile" id="ptile">
+        <img id="carart" src="car.jpg" alt="" aria-hidden="true">
+        <img id="photo" alt="" hidden>
+        <span class="chip" id="pchip">
+          <svg viewBox="0 0 24 24"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 3 7.2 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 4.8A4.2 4.2 0 1 1 12 16.2a4.2 4.2 0 0 1 0-8.4z"/></svg>
+          <span id="pchip-t">탭하여 사진찍기</span>
+        </span>
+      </button>
+    </div>
+
+    <div class="card mapcard">
+      <div class="chips" id="chips"></div>
+      <div id="map">
+        <div id="tiles"></div>
+        <div id="pins"></div>
+        <div class="zoom"><button id="z-in">＋</button><button id="z-out">－</button></div>
+        <div id="map-msg" class="map-msg" hidden></div>
+      </div>
+      <div class="mfoot">
+        <span class="dist" id="dist">위치를 기록하면 지도에 표시돼요</span>
+        <button id="open-map">지도 앱으로 열기 →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── 위치관리 ─────────── -->
+  <section class="screen" id="s-lots">
+    <div class="hdr"><span class="wm" style="font-size:20px">위치관리</span></div>
+    <button class="addbtn" id="add-lot">+ 자주 가는 주차장 추가</button>
+    <div id="lot-list"></div>
+    <p class="hint" style="margin-top:4px">주차장을 등록해 두면 기록할 때 층 목록이 그 주차장에 맞춰지고, 지도 칩으로 바로 찾아갈 수 있어요.</p>
+  </section>
+
+  <!-- ─────────── 기록 ─────────── -->
+  <section class="screen" id="s-hist">
+    <div class="hdr"><span class="wm" style="font-size:20px">주차 기록</span></div>
+    <div id="hist-list"></div>
+  </section>
+
+  <!-- ─────────── 설정 ─────────── -->
+  <section class="screen" id="s-more">
+    <div class="hdr"><span class="wm" style="font-size:20px">앱 정보</span></div>
+    <div class="card about" style="padding:16px;margin-bottom:10px">
+      <p><b>아이폰판은 수동 기록입니다.</b> 사파리에는 차량 블루투스 API가 없어서, 안드로이드판처럼
+        차에서 내리는 순간을 자동으로 알아채지는 못합니다. 대신 <b>홈 화면 아이콘 한 번 → [주차] 한 번</b>으로
+        3초 안에 기록됩니다.</p>
+      <p><b>앱처럼 쓰는 방법</b></p>
+      <ol>
+        <li>사파리 화면 아래 <b>공유 버튼</b>(위로 향한 화살표) 탭</li>
+        <li>"홈 화면에 추가" 선택</li>
+        <li>홈 화면 아이콘으로 열면 사파리 주소창 없이 앱처럼 열립니다</li>
+      </ol>
+    </div>
+    <div class="card about" style="padding:16px;margin-bottom:10px">
+      <p><b>기록은 이 폰에만 저장됩니다.</b> 서버로 아무것도 보내지 않습니다. 사파리 데이터를 지우면
+        기록도 함께 사라집니다.</p>
+      <p>위치는 [주차]를 누를 때 한 번만 조회합니다 — 상시 추적하지 않습니다.</p>
+    </div>
+    <div class="card about" style="padding:16px">
+      <p><b>안드로이드폰이라면</b> 자동감지가 되는 정식 앱을 쓰세요.</p>
+      <button class="ghost" id="apk" style="margin-top:2px">안드로이드 APK 받기 →</button>
+    </div>
+    <p class="micro" style="text-align:center;margin:14px 0 4px">어따뒀지 · 기록은 3초 · 확인은 0초</p>
+  </section>
+
+  <!-- ─────────── 탭바 ─────────── -->
+  <nav class="tabbar">
+    <button class="on" data-tab="home"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>홈</button>
+    <button data-tab="lots"><svg viewBox="0 0 24 24"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>위치관리</button>
+    <button data-tab="hist"><svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 1 0 8.9 10.4l-2-.3A7 7 0 1 1 13 5v3l4-4-4-4v3z"/><path d="M12 8v5l4 2 .8-1.6L13.5 12V8z"/></svg>기록</button>
+    <button data-tab="more"><svg viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zM12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/></svg>정보</button>
+  </nav>
+</div>
+
+<!-- 기록 시트 -->
+<div class="dim" id="dim"></div>
+<div class="sheet" id="sheet">
+  <div class="handle"></div>
+  <div class="card rc">
+    <div class="rc-top">
+      <span class="lbl">위치정보</span>
+      <button class="lotchip none" id="sheet-lot">⊕ 위치 등록</button>
+      <button class="photobtn" id="sheet-photo">
+        <svg viewBox="0 0 24 24"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 3 7.2 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9z"/></svg>
+        <span id="sheet-photo-t">사진</span>
+      </button>
+    </div>
+    <div class="step">
+      <div class="stepcol">
+        <div class="steprow">
+          <button class="arrow up" id="fl-up">◁</button>
+          <div class="fsign" id="fl-sign">B1</div>
+          <button class="arrow down" id="fl-down">▷</button>
+        </div>
+        <div class="caps">
+          <span class="c up" id="cap-up">위층</span>
+          <span class="c mid" id="cap-mid"></span>
+          <span class="c down" id="cap-down">아래층</span>
+        </div>
+      </div>
+      <button class="park" id="save">주차</button>
+    </div>
+    <div class="memo">
+      <input id="memo" placeholder="메모 (예: C구역 기둥 27 옆)" enterkeyhint="done">
+    </div>
+    <div class="warn" id="warn" hidden></div>
+  </div>
+</div>
+
+<!-- 공용 피커 (위치 선택 · 이름 입력 · 층 목록) -->
+<div class="dim" id="pdim"></div>
+<div class="sheet" id="picker">
+  <div class="handle"></div>
+  <div class="card" style="padding:16px">
+    <div id="pk-title" style="font-weight:700;color:var(--ink);font-size:16px;margin-bottom:12px"></div>
+    <div class="memo" id="pk-inputbox" hidden style="margin:0 0 12px">
+      <input id="pk-input" placeholder="">
+    </div>
+    <div id="pk-list"></div>
+    <button class="ghost" id="pk-cancel" style="margin-top:10px">닫기</button>
+  </div>
+</div>
+
+<input type="file" id="cam" accept="image/*" capture="environment" hidden>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==========================================================================
+   어따뒀지 아이폰판 (PWA) — 안드로이드 앱의 수동 기록 흐름만 옮긴 것.
+   사파리에는 Web Bluetooth·백그라운드 실행이 없어 자동감지는 불가능하다.
+   저장은 전부 localStorage (서버 없음). 위치는 [주차] 누를 때 1회만 조회.
+   ========================================================================== */
+(function () {
+  'use strict';
+
+  var GREEN = '#2F6B4F', INK = '#17191D', MAPBLUE = '#1A73E8';
+  var DEFAULT_FLOORS = ['3F', '2F', '1F', 'B1', 'B2', 'B3', 'B4'];
+  var KEY = 'eottadwotji.v1';
+  var APK = 'https://github.com/dacisosl/CARwhere/releases/latest';
+
+  /* ── 저장소 ─────────────────────────────────────────── */
+  var db = load();
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var d = JSON.parse(raw);
+        d.lots = d.lots || []; d.history = d.history || [];
+        return d;
+      }
+    } catch (e) {}
+    return { lots: [], history: [], parking: null, a2hsDone: false };
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(db)); }
+    catch (e) { toast('저장 공간이 부족해요 — 오래된 기록을 지워주세요'); }
+  }
+
+  /* ── 유틸 ──────────────────────────────────────────── */
+  var $ = function (id) { return document.getElementById(id); };
+  function sortFloors(list) {
+    // 위에서 아래로: 4F 3F … 1F B1 B2 …
+    return list.slice().sort(function (a, b) { return rank(a) - rank(b); });
+  }
+  function rank(f) {
+    var n = parseInt(String(f).replace(/\D/g, ''), 10) || 1;
+    return String(f).charAt(0) === 'B' ? 100 + n : 100 - n;
+  }
+  function hm(ms) {
+    var m = Math.max(0, Math.floor(ms / 60000));
+    return Math.floor(m / 60) + ':' + ('0' + (m % 60)).slice(-2);
+  }
+  function clock(ts) {
+    var d = new Date(ts);
+    return d.getHours() + ':' + ('0' + d.getMinutes()).slice(-2);
+  }
+  function dayLabel(ts) {
+    var d = new Date(ts);
+    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + clock(ts);
+  }
+  function meters(a, b) {
+    var R = 6371000, t = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * t, dLon = (b.lon - a.lon) * t;
+    var la1 = a.lat * t, la2 = b.lat * t;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return Math.round(2 * R * Math.asin(Math.sqrt(h)));
+  }
+  function bearing(a, b) {
+    var dirs = ['북', '북동', '동', '남동', '남', '남서', '서', '북서'];
+    var t = Math.PI / 180;
+    var y = Math.sin((b.lon - a.lon) * t) * Math.cos(b.lat * t);
+    var x = Math.cos(a.lat * t) * Math.sin(b.lat * t) -
+            Math.sin(a.lat * t) * Math.cos(b.lat * t) * Math.cos((b.lon - a.lon) * t);
+    var deg = (Math.atan2(y, x) / t + 360) % 360;
+    return dirs[Math.round(deg / 45) % 8];
+  }
+  var toastTimer;
+  function toast(msg) {
+    var el = $('toast');
+    el.textContent = msg; el.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('on'); }, 2200);
+  }
+
+  /* ── 공용 피커 (iOS 표준 앱처럼 — prompt() 대신 시트) ── */
+  var pickerDone = null;
+  function picker(opt) {
+    $('pk-title').textContent = opt.title;
+    var box = $('pk-inputbox');
+    box.hidden = !opt.input;
+    if (opt.input) {
+      $('pk-input').placeholder = opt.placeholder || '';
+      $('pk-input').value = opt.value || '';
+    }
+    var list = $('pk-list');
+    list.innerHTML = '';
+    (opt.options || []).forEach(function (o) {
+      var b = document.createElement('button');
+      b.className = 'pk-opt' + (o.selected ? ' sel' : '');
+      b.textContent = o.label;
+      b.addEventListener('click', function () { finish(o.value); });
+      list.appendChild(b);
+    });
+    if (opt.input) {
+      var ok = document.createElement('button');
+      ok.className = 'bigbtn';
+      ok.textContent = opt.confirmLabel || '확인';
+      ok.addEventListener('click', function () { finish($('pk-input').value.trim()); });
+      list.appendChild(ok);
+    }
+    pickerDone = opt.onPick;
+    $('pdim').classList.add('on');
+    $('picker').classList.add('on');
+    if (opt.input) setTimeout(function () { $('pk-input').focus(); }, 260);
+
+    function finish(v) {
+      closePicker();
+      if (pickerDone) { var f = pickerDone; pickerDone = null; f(v); }
+    }
+  }
+  function closePicker() {
+    $('pdim').classList.remove('on');
+    $('picker').classList.remove('on');
+    pickerDone = null;
+    document.activeElement && document.activeElement.blur();
+  }
+  $('pdim').addEventListener('click', closePicker);
+  $('pk-cancel').addEventListener('click', closePicker);
+  $('pk-input').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      var v = $('pk-input').value.trim(), f = pickerDone;
+      closePicker();
+      if (f) f(v);
+    }
+  });
+
+  /* ── 탭 ────────────────────────────────────────────── */
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabbar button'));
+  tabs.forEach(function (b) {
+    b.addEventListener('click', function () { showTab(b.dataset.tab); });
+  });
+  function showTab(name) {
+    tabs.forEach(function (b) { b.classList.toggle('on', b.dataset.tab === name); });
+    ['home', 'lots', 'hist', 'more'].forEach(function (n) {
+      $('s-' + n).classList.toggle('on', n === name);
+    });
+    if (name === 'home') setTimeout(drawMap, 60);
+    if (name === 'lots') renderLots();
+    if (name === 'hist') renderHistory();
+  }
+
+  /* ── 지도 (OSM 타일 직접 렌더 — 외부 지도 라이브러리 없음) ─────────
+     Leaflet 같은 외부 스크립트를 쓰면 CDN이 막히거나 오프라인일 때 앱 전체가 멈춘다.
+     타일 URL 규칙만 쓰면 의존성이 0이고, 실패해도 층수·경과시간은 그대로 보인다.
+     드래그·핀치는 생략 — 실제 길찾기는 "지도 앱으로 열기"가 담당한다. */
+  var myPos = null, mapZoom = 17, mapCenter = null;
+  var TILE = 256, OSM = 'https://tile.openstreetmap.org/';
+
+  function project(lat, lon, z) {
+    var n = Math.pow(2, z);
+    var r = lat * Math.PI / 180;
+    return {
+      x: (lon + 180) / 360 * n * TILE,
+      y: (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n * TILE
+    };
+  }
+  function zoomFor(a, b, w, h) {
+    // 두 점이 화면에 여유롭게 들어오는 가장 큰 줌
+    for (var z = 18; z >= 12; z--) {
+      var p = project(a.lat, a.lon, z), q = project(b.lat, b.lon, z);
+      if (Math.abs(p.x - q.x) < w * 0.62 && Math.abs(p.y - q.y) < h * 0.55) return z;
+    }
+    return 12;
+  }
+  function drawMap() {
+    var box = $('map');
+    if (!box) return;
+    var w = box.clientWidth, h = box.clientHeight;
+    var tiles = $('tiles'), pins = $('pins'), msg = $('map-msg');
+    if (!w || !h) return;
+
+    var car = (db.parking && db.parking.lat != null)
+      ? { lat: db.parking.lat, lon: db.parking.lon } : null;
+
+    // 중심: 차+내위치 > 차 > 내위치 > (선택한 주차장)
+    var center = mapCenter;
+    if (!center) {
+      if (car && myPos) {
+        center = { lat: (car.lat + myPos.lat) / 2, lon: (car.lon + myPos.lon) / 2 };
+        mapZoom = zoomFor(car, myPos, w, h);
+      } else if (car) { center = car; mapZoom = 17; }
+      else if (myPos) { center = myPos; mapZoom = 16; }
+    }
+    if (!center) {
+      tiles.innerHTML = ''; pins.innerHTML = '';
+      msg.hidden = false;
+      msg.textContent = '주차 위치를 기록하면 지도에 표시돼요';
+      $('dist').textContent = '위치를 기록하면 지도에 표시돼요';
+      return;
+    }
+    msg.hidden = true;
+
+    var c = project(center.lat, center.lon, mapZoom);
+    var originX = c.x - w / 2, originY = c.y - h / 2;
+    var max = Math.pow(2, mapZoom);
+
+    // 타일 붙이기 (화면을 덮는 범위만)
+    var frag = document.createDocumentFragment();
+    var x0 = Math.floor(originX / TILE), x1 = Math.floor((originX + w) / TILE);
+    var y0 = Math.floor(originY / TILE), y1 = Math.floor((originY + h) / TILE);
+    for (var ty = y0; ty <= y1; ty++) {
+      if (ty < 0 || ty >= max) continue;
+      for (var tx = x0; tx <= x1; tx++) {
+        var wx = ((tx % max) + max) % max;
+        var img = document.createElement('img');
+        img.src = OSM + mapZoom + '/' + wx + '/' + ty + '.png';
+        img.alt = ''; img.loading = 'eager'; img.decoding = 'async';
+        img.style.left = (tx * TILE - originX) + 'px';
+        img.style.top = (ty * TILE - originY) + 'px';
+        frag.appendChild(img);
+      }
+    }
+    tiles.innerHTML = '';
+    tiles.appendChild(frag);
+    if (!box.querySelector('.osm')) {
+      var a = document.createElement('span');
+      a.className = 'osm'; a.textContent = '© OpenStreetMap';
+      box.appendChild(a);
+    }
+
+    // 마커
+    pins.innerHTML = '';
+    function put(pos, cls, label) {
+      var p = project(pos.lat, pos.lon, mapZoom);
+      var el = document.createElement('div');
+      el.className = 'pin ' + cls;
+      el.textContent = label || '';
+      el.style.left = (p.x - originX) + 'px';
+      el.style.top = (p.y - originY) + 'px';
+      pins.appendChild(el);
+    }
+    db.lots.forEach(function (lot) {
+      if (lot.lat == null) return;
+      if (car && Math.abs(lot.lat - car.lat) < 1e-5 && Math.abs(lot.lon - car.lon) < 1e-5) return;
+      put({ lat: lot.lat, lon: lot.lon }, 'lot', 'P');
+    });
+    if (myPos) put(myPos, 'me', '');
+    if (car) put(car, 'car', 'P');
+
+    $('dist').textContent = (car && myPos)
+      ? '차까지 ' + meters(myPos, car) + 'm · ' + bearing(myPos, car) + '쪽'
+      : car ? '주차 위치' : '내 위치';
+  }
+  function focusMap(lat, lon, z) {
+    mapCenter = { lat: lat, lon: lon };
+    if (z) mapZoom = z;
+    drawMap();
+  }
+  $('z-in').addEventListener('click', function () {
+    mapZoom = Math.min(19, mapZoom + 1); mapCenter = mapCenter || centerNow(); drawMap();
+  });
+  $('z-out').addEventListener('click', function () {
+    mapZoom = Math.max(12, mapZoom - 1); mapCenter = mapCenter || centerNow(); drawMap();
+  });
+  function centerNow() {
+    if (db.parking && db.parking.lat != null) return { lat: db.parking.lat, lon: db.parking.lon };
+    return myPos;
+  }
+  window.addEventListener('resize', function () { drawMap(); });
+
+  function locateOnce(cb) {
+    if (!navigator.geolocation) { if (cb) cb(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      function (p) {
+        myPos = { lat: p.coords.latitude, lon: p.coords.longitude };
+        if (cb) cb(myPos);
+        drawMap();
+      },
+      function () { if (cb) cb(null); },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  }
+
+  /* ── 홈 ────────────────────────────────────────────── */
+  function renderHome() {
+    var p = db.parking;
+    var parked = !!p;
+
+    $('bar').classList.toggle('idle', !parked);
+    $('depart').hidden = !parked;
+    $('elapsed').textContent = parked ? hm(Date.now() - p.at) : '—';
+    $('bar-sub').textContent = parked
+      ? '주차 ' + clock(p.at) + (p.lotName ? ' · ' + p.lotName : '')
+      : '주차 기록이 없어요';
+
+    var fn = $('fnum');
+    fn.textContent = parked ? (p.floor || 'P') : '—';
+    fn.className = 'fnum' + (parked ? '' : ' off') +
+      (parked && p.floor && p.floor.length >= 3 ? ' small' : '');
+    $('fcap').textContent = parked ? '탭해서 다시 기록' : '탭해서 기록';
+
+    var img = $('photo');
+    $('ptile').classList.toggle('parked', parked);
+    if (parked && p.photo) {
+      img.src = p.photo; img.hidden = false;
+      $('carart').hidden = true;
+      $('pchip-t').textContent = '사진 보기';
+    } else {
+      img.hidden = true;
+      $('carart').hidden = false;
+      $('pchip-t').textContent = parked ? '탭하여 사진찍기' : '내 차';
+    }
+
+    renderChips();
+    drawMap();
+  }
+  function renderChips() {
+    var box = $('chips');
+    box.innerHTML = '';
+    if (!db.lots.length) {
+      var h = document.createElement('span');
+      h.className = 'hint'; h.style.padding = '7px 2px';
+      h.textContent = '위치관리에서 자주 가는 곳을 등록해요';
+      box.appendChild(h);
+      return;
+    }
+    db.lots.forEach(function (lot) {
+      var b = document.createElement('button');
+      b.className = 'chip-b' + (db.parking && db.parking.lotId === lot.id ? ' on' : '');
+      b.textContent = lot.name;
+      b.addEventListener('click', function () {
+        if (lot.lat == null) { toast("'" + lot.name + "'은 좌표가 없어요"); return; }
+        focusMap(lot.lat, lot.lon, 17);
+      });
+      box.appendChild(b);
+    });
+  }
+  setInterval(function () {
+    if (db.parking && $('s-home').classList.contains('on')) {
+      $('elapsed').textContent = hm(Date.now() - db.parking.at);
+    }
+  }, 20000);
+
+  /* ── 기록 시트 ─────────────────────────────────────── */
+  var sheetFloors = DEFAULT_FLOORS.slice(), sheetIdx = 3, sheetLot = null, sheetPhoto = null;
+
+  function openSheet() {
+    // 지금 위치와 가장 가까운(120m 이내) 등록 주차장을 미리 고른다
+    sheetLot = null;
+    if (myPos) sheetLot = nearestLot(myPos);
+    sheetPhoto = (db.parking && db.parking.photo) || null;
+    sheetFloors = sortFloors(sheetLot && sheetLot.floors && sheetLot.floors.length
+      ? sheetLot.floors : DEFAULT_FLOORS);
+    var pref = (sheetLot && sheetLot.lastFloor) || (db.parking && db.parking.floor) || 'B1';
+    var i = sheetFloors.indexOf(pref);
+    sheetIdx = i >= 0 ? i : Math.floor(sheetFloors.length / 2);
+    $('memo').value = (db.parking && db.parking.memo) || '';
+    renderSheet();
+    $('dim').classList.add('on');
+    $('sheet').classList.add('on');
+    // 좌표는 시트를 띄운 뒤에 조회 — 기다리게 하지 않는다
+    locateOnce(function () {
+      if (!$('sheet').classList.contains('on')) return;
+      var near = myPos ? nearestLot(myPos) : null;
+      if (near && (!sheetLot || near.id !== sheetLot.id)) {
+        sheetLot = near;
+        sheetFloors = sortFloors(near.floors && near.floors.length ? near.floors : DEFAULT_FLOORS);
+        var j = sheetFloors.indexOf(near.lastFloor || 'B1');
+        sheetIdx = j >= 0 ? j : Math.floor(sheetFloors.length / 2);
+        renderSheet();
+      }
+    });
+  }
+  function closeSheet() {
+    $('dim').classList.remove('on');
+    $('sheet').classList.remove('on');
+    document.activeElement && document.activeElement.blur();
+  }
+  function nearestLot(pos) {
+    var best = null, bestD = 121;
+    db.lots.forEach(function (lot) {
+      if (lot.lat == null) return;
+      var d = meters(pos, { lat: lot.lat, lon: lot.lon });
+      if (d < bestD) { bestD = d; best = lot; }
+    });
+    return best;
+  }
+  function renderSheet() {
+    var floor = sheetFloors[sheetIdx];
+    $('fl-sign').textContent = floor;
+    var upOk = sheetIdx > 0, downOk = sheetIdx < sheetFloors.length - 1;
+    $('fl-up').className = 'arrow ' + (upOk ? 'up' : 'off');
+    $('fl-down').className = 'arrow ' + (downOk ? 'down' : 'off');
+    $('cap-up').className = 'c up' + (upOk ? '' : ' off');
+    $('cap-down').className = 'c down' + (downOk ? '' : ' off');
+    $('cap-mid').textContent = (sheetLot && sheetLot.lastFloor === floor) ? '지난번' : '';
+
+    var chip = $('sheet-lot');
+    chip.textContent = sheetLot ? sheetLot.name + ' ▾' : '⊕ 위치 등록';
+    chip.className = 'lotchip' + (sheetLot ? '' : ' none');
+
+    $('sheet-photo-t').textContent = sheetPhoto ? '사진 1' : '사진';
+    var btn = $('sheet-photo');
+    var old = btn.querySelector('img');
+    if (old) btn.removeChild(old);
+    if (sheetPhoto) {
+      var im = document.createElement('img');
+      im.src = sheetPhoto;
+      btn.insertBefore(im, btn.firstElementChild);
+      btn.querySelector('svg').style.display = 'none';
+    } else {
+      btn.querySelector('svg').style.display = '';
+    }
+  }
+  $('fl-up').addEventListener('click', function () {
+    if (sheetIdx > 0) { sheetIdx--; renderSheet(); }
+  });
+  $('fl-down').addEventListener('click', function () {
+    if (sheetIdx < sheetFloors.length - 1) { sheetIdx++; renderSheet(); }
+  });
+  $('dim').addEventListener('click', closeSheet);
+  $('sheet-lot').addEventListener('click', function () {
+    if (!db.lots.length) {
+      closeSheet();
+      addLot(function () { showTab('home'); openSheet(); });
+      return;
+    }
+    var opts = db.lots.map(function (l) {
+      return { label: l.name, value: l.id, selected: !!sheetLot && sheetLot.id === l.id };
+    });
+    opts.push({ label: '선택 안 함', value: '' });
+    picker({
+      title: '어느 주차장인가요?',
+      options: opts,
+      onPick: function (id) {
+        sheetLot = id ? db.lots.filter(function (l) { return l.id === id; })[0] : null;
+        sheetFloors = sortFloors(sheetLot && sheetLot.floors && sheetLot.floors.length
+          ? sheetLot.floors : DEFAULT_FLOORS);
+        var pref = (sheetLot && sheetLot.lastFloor) || sheetFloors[sheetIdx] || 'B1';
+        var i = sheetFloors.indexOf(pref);
+        sheetIdx = i >= 0 ? i : Math.floor(sheetFloors.length / 2);
+        renderSheet();
+      }
+    });
+  });
+  $('memo').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); doSave(); }
+  });
+  $('save').addEventListener('click', doSave);
+
+  function doSave() {
+    var floor = sheetFloors[sheetIdx];
+    var memo = $('memo').value.trim();
+    var now = Date.now();
+
+    if (db.parking) {
+      // 이미 주차 중 — "다시 기록"이므로 같은 세션을 고친다 (시작 시각 유지)
+      db.parking.floor = floor;
+      db.parking.memo = memo;
+      db.parking.photo = sheetPhoto || db.parking.photo || null;
+      if (sheetLot) { db.parking.lotId = sheetLot.id; db.parking.lotName = sheetLot.name; }
+    } else {
+      db.parking = {
+        at: now, floor: floor, memo: memo, photo: sheetPhoto || null,
+        lat: myPos ? myPos.lat : null, lon: myPos ? myPos.lon : null,
+        lotId: sheetLot ? sheetLot.id : null,
+        lotName: sheetLot ? sheetLot.name : null
+      };
+    }
+    if (sheetLot) {
+      sheetLot.lastFloor = floor;
+      if (sheetLot.lat == null && myPos) { sheetLot.lat = myPos.lat; sheetLot.lon = myPos.lon; }
+    }
+    save();
+    closeSheet();
+    renderHome();
+    toast(floor + ' 등록됐어요');
+
+    // 좌표가 아직 없으면 뒤늦게라도 채운다 (시트를 기다리게 하지 않은 대가)
+    if (db.parking.lat == null) {
+      locateOnce(function (pos) {
+        if (!pos || !db.parking || db.parking.lat != null) return;
+        db.parking.lat = pos.lat; db.parking.lon = pos.lon;
+        var near = nearestLot(pos);
+        if (near && !db.parking.lotId) {
+          db.parking.lotId = near.id; db.parking.lotName = near.name;
+          near.lastFloor = db.parking.floor;
+        }
+        save(); renderHome();
+      });
+    }
+  }
+
+  /* ── 출차 (기록 종료) ─────────────────────────────── */
+  $('depart').addEventListener('click', function () {
+    if (!db.parking) return;
+    picker({
+      title: '출차하셨어요?',
+      options: [
+        { label: '네, 기록을 끝낼게요', value: 'yes' },
+        { label: '아니요 — 계속 주차 중', value: 'no' }
+      ],
+      onPick: function (v) {
+        if (v !== 'yes') return;
+        pushHistory(db.parking, Date.now());
+        db.parking = null;
+        save(); renderHome();
+        toast('출차 기록됐어요');
+      }
+    });
+  });
+
+  function pushHistory(p, endedAt) {
+    db.history.unshift({
+      at: p.at, endedAt: endedAt, floor: p.floor, memo: p.memo,
+      lotName: p.lotName, lat: p.lat, lon: p.lon
+    });
+    db.history = db.history.slice(0, 60);
+  }
+
+  /* ── 사진 ──────────────────────────────────────────── */
+  $('cam').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    shrink(f, function (dataUrl) {
+      sheetPhoto = dataUrl;
+      if (db.parking) { db.parking.photo = dataUrl; save(); renderHome(); }
+      if ($('sheet').classList.contains('on')) renderSheet();
+      toast('사진이 저장됐어요');
+    });
+  });
+  function shrink(file, cb) {
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      var max = 720;
+      var s = Math.min(1, max / Math.max(img.width, img.height));
+      var c = document.createElement('canvas');
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      cb(c.toDataURL('image/jpeg', 0.62));
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); toast('사진을 읽지 못했어요'); };
+    img.src = url;
+  }
+  $('sheet-photo').addEventListener('click', function () { $('cam').click(); });
+  $('ptile').addEventListener('click', function () {
+    if (db.parking && db.parking.photo) { window.open(db.parking.photo, '_blank'); }
+    else if (db.parking) { $('cam').click(); }
+    else { openSheet(); }
+  });
+  $('floor-cell').addEventListener('click', openSheet);
+
+  /* ── 위치관리 ──────────────────────────────────────── */
+  function renderLots() {
+    var box = $('lot-list');
+    box.innerHTML = '';
+    if (!db.lots.length) {
+      box.innerHTML = '<p class="empty">등록된 주차장이 없어요.<br>집·직장처럼 자주 가는 곳을 추가해 두세요.</p>';
+      return;
+    }
+    db.lots.forEach(function (lot) {
+      var row = document.createElement('div');
+      row.className = 'card row';
+      var here = db.parking && db.parking.lotId === lot.id;
+      row.innerHTML =
+        '<span class="sign-s' + (lot.lastFloor ? '' : ' gray') + '">' + (lot.lastFloor || 'P') + '</span>' +
+        '<span class="t"><span class="nm"></span><span class="sb"></span></span>' +
+        (here ? '<span class="tag">지금 여기</span>' : '') +
+        '<button class="del">삭제</button>';
+      row.querySelector('.nm').textContent = lot.name;
+      row.querySelector('.sb').textContent =
+        (lot.floors && lot.floors.length ? lot.floors.length + '개 층' : '기본 층') +
+        (lot.lat != null ? ' · 좌표 저장됨' : ' · 좌표 없음');
+      row.querySelector('.del').addEventListener('click', function (e) {
+        e.stopPropagation();
+        picker({
+          title: "'" + lot.name + "'을 삭제할까요?",
+          options: [
+            { label: '삭제', value: 'y' },
+            { label: '취소', value: 'n' }
+          ],
+          onPick: function (v) {
+            if (v !== 'y') return;
+            db.lots = db.lots.filter(function (l) { return l.id !== lot.id; });
+            save(); renderLots(); renderChips(); renderHome();
+          }
+        });
+      });
+      row.addEventListener('click', function (e) {
+        if (e.target.classList.contains('del')) return;
+        editFloors(lot);
+      });
+      box.appendChild(row);
+    });
+  }
+  function addLot(after) {
+    picker({
+      title: '주차장 추가',
+      input: true,
+      placeholder: '이름 (예: 집, 직장, 이마트)',
+      confirmLabel: '추가',
+      onPick: function (name) {
+        if (!name) { if (after) after(); return; }
+        var lot = {
+          id: 'l' + Date.now(), name: name,
+          floors: DEFAULT_FLOORS.slice(), lastFloor: null, lat: null, lon: null
+        };
+        db.lots.push(lot); save(); renderLots(); renderChips();
+        toast("'" + name + "' 추가됐어요");
+        // 지금 여기가 그 주차장이면 좌표를 저장해 둔다 (다음부터 자동 매칭)
+        locateOnce(function (pos) {
+          if (!pos) { if (after) after(); return; }
+          picker({
+            title: '지금 위치를 "' + name + '"의 좌표로 저장할까요?',
+            options: [
+              { label: '네 — 지금 여기예요', value: 'y' },
+              { label: '아니요', value: 'n' }
+            ],
+            onPick: function (v) {
+              if (v === 'y') { lot.lat = pos.lat; lot.lon = pos.lon; save(); renderLots(); renderChips(); }
+              if (after) after();
+            }
+          });
+        });
+      }
+    });
+  }
+  function editFloors(lot) {
+    picker({
+      title: '"' + lot.name + '" 층 목록',
+      input: true,
+      placeholder: '쉼표로 구분 (예: 1F, B1, B2)',
+      value: (lot.floors && lot.floors.length ? lot.floors : DEFAULT_FLOORS).join(', '),
+      confirmLabel: '저장',
+      onPick: function (str) {
+        if (str === null || str === undefined) return;
+        var list = str.split(',').map(function (x) { return x.trim().toUpperCase(); })
+          .filter(function (x) { return x; });
+        lot.floors = list.length ? sortFloors(list) : DEFAULT_FLOORS.slice();
+        save(); renderLots();
+        toast('층 목록을 저장했어요');
+      }
+    });
+  }
+  $('add-lot').addEventListener('click', function () { addLot(); });
+
+  /* ── 기록 ──────────────────────────────────────────── */
+  function renderHistory() {
+    var box = $('hist-list');
+    box.innerHTML = '';
+    var rows = [];
+    if (db.parking) rows.push({ cur: true, r: db.parking });
+    db.history.forEach(function (r) { rows.push({ cur: false, r: r }); });
+    if (!rows.length) {
+      box.innerHTML = '<p class="empty">아직 기록이 없어요.<br>홈에서 층수를 눌러 첫 기록을 남겨보세요.</p>';
+      return;
+    }
+    rows.forEach(function (it) {
+      var r = it.r;
+      var row = document.createElement('div');
+      row.className = 'card row';
+      row.innerHTML =
+        '<span class="sign-s' + (r.floor ? '' : ' gray') + '">' + (r.floor || 'P') + '</span>' +
+        '<span class="t"><span class="nm"></span><span class="sb"></span></span>' +
+        (it.cur ? '<span class="tag">주차 중</span>' : '');
+      row.querySelector('.nm').textContent = r.lotName || '위치 미등록';
+      row.querySelector('.sb').textContent = dayLabel(r.at) +
+        (it.cur ? ' · ' + hm(Date.now() - r.at) + ' 경과' : ' · ' + hm(r.endedAt - r.at)) +
+        (r.memo ? ' · ' + r.memo : '');
+      if (r.lat != null) {
+        row.addEventListener('click', function () { openExternalMap(r.lat, r.lon); });
+      }
+      box.appendChild(row);
+    });
+  }
+
+  /* ── 지도 앱 열기 ──────────────────────────────────── */
+  function openExternalMap(lat, lon) {
+    // 아이폰은 지도(Apple Maps) 기본 — 좌표만 넘긴다
+    window.open('https://maps.apple.com/?ll=' + lat + ',' + lon + '&q=' +
+      encodeURIComponent('내 차'), '_blank');
+  }
+  $('open-map').addEventListener('click', function () {
+    var p = db.parking;
+    if (p && p.lat != null) openExternalMap(p.lat, p.lon);
+    else toast('먼저 주차 위치를 기록해주세요');
+  });
+  $('apk').addEventListener('click', function () { window.open(APK, '_blank'); });
+
+  /* ── 홈 화면에 추가 안내 ───────────────────────────── */
+  var standalone = window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches;
+  if (!standalone && !db.a2hsDone) $('a2hs').hidden = false;
+  $('a2hs-x').addEventListener('click', function () {
+    $('a2hs').hidden = true; db.a2hsDone = true; save();
+  });
+
+  /* ── 시작 ──────────────────────────────────────────── */
+  renderHome();
+  locateOnce();
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) { renderHome(); }
+  });
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    });
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+name: Deploy iOS web app (Pages)
+
+# web/ 폴더(아이폰용 PWA)를 GitHub Pages로 배포한다.
+# 안드로이드 앱 빌드와 무관 — web/**가 바뀔 때만 돈다.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 배포는 하나만 — 늦게 시작한 것이 먼저 것을 대체한다
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # enablement: true — 저장소 설정에서 Pages를 켜지 않았어도 워크플로가 켠다
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
