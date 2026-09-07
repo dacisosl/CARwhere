@@ -3,7 +3,7 @@
  * 지도 타일·폰트는 외부 도메인이라 캐시하지 않고 네트워크에 맡긴다.
  * 기록 데이터는 localStorage에 있으므로 이 캐시와 무관하다.
  */
-var CACHE = 'eottadwotji-shell-v1';
+var CACHE = 'eottadwotji-shell-v2'; // 셸 파일이 바뀌면 올린다 (구버전 캐시는 activate에서 지운다)
 var SHELL = [
   './',
   './index.html',
