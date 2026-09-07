@@ -194,6 +194,11 @@
   .about p{font-size:13px;color:var(--body);margin:0 0 9px}
   .about b{color:var(--ink)}
   .about ol{margin:6px 0 0;padding-left:20px;font-size:13px}
+  .urlbox{display:flex;align-items:center;gap:8px;background:var(--panel);border-radius:10px;
+    padding:9px 11px;margin-top:9px}
+  .urlbox code{flex:1;min-width:0;font-size:11px;color:var(--body);word-break:break-all;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .urlbox button{font-size:12px;font-weight:700;color:var(--green);flex:none}
   .about li{margin-bottom:5px}
   .toast{position:fixed;left:50%;bottom:calc(74px + var(--safe-b));transform:translate(-50%,14px);
     background:var(--ink);color:#fff;font-size:13px;font-weight:600;padding:10px 16px;
@@ -208,6 +213,12 @@
     <div class="hdr">
       <div class="logo"><span class="pbadge">P</span><span class="wm">어따뒀지</span></div>
       <span class="ios-tag">아이폰판</span>
+    </div>
+
+    <div class="card banner" id="arrive" hidden>
+      <span id="arrive-t"></span>
+      <button id="arrive-go">기록</button>
+      <button class="x" id="arrive-x">✕</button>
     </div>
 
     <div class="card banner" id="a2hs" hidden>
@@ -279,6 +290,36 @@
         <li>홈 화면 아이콘으로 열면 사파리 주소창 없이 앱처럼 열립니다</li>
       </ol>
     </div>
+    <div class="card about" style="padding:16px;margin-bottom:10px">
+      <p><b>차 끄면 자동으로 열리게 (단축어)</b></p>
+      <p>사파리는 차량 블루투스를 볼 수 없지만, 아이폰 <b>단축어</b> 앱의 자동화는 볼 수 있어요.
+        아래처럼 한 번만 만들어 두면 <b>차에서 내리는 순간 iOS가 이 앱을 열어주고 기록 시트가 바로 뜹니다.</b></p>
+      <ol>
+        <li><b>단축어</b> 앱 → 아래 <b>자동화</b> 탭 → <b>+</b> (새 자동화)</li>
+        <li><b>블루투스</b> 선택 → 차 오디오 기기 고르기 → <b>"연결 해제될 때"</b></li>
+        <li><b>즉시 실행</b> 선택 (실행 전 확인 끄기)</li>
+        <li>동작 검색에서 <b>"URL 열기"</b> 추가 → 아래 주소 붙여넣기</li>
+      </ol>
+      <div class="urlbox"><code id="url-record"></code><button id="copy-record">복사</button></div>
+      <p class="hint" style="margin-top:8px">차에 <b>카플레이</b>가 있으면 2번에서 블루투스 대신
+        <b>CarPlay → 연결 해제될 때</b>를 골라도 됩니다 — 더 정확해요.</p>
+    </div>
+
+    <div class="card about" style="padding:16px;margin-bottom:10px">
+      <p><b>집 근처에 오면 알림 (위치 자동화)</b></p>
+      <p>블루투스가 없는 차라면 위치로도 됩니다. 같은 방법으로 자동화를 하나 더 만드세요.</p>
+      <ol>
+        <li><b>단축어</b> → <b>자동화</b> → <b>+</b> → <b>도착</b></li>
+        <li><b>위치</b>에 집(또는 주차장) 주소를 지정, 시간대는 <b>하루 종일</b></li>
+        <li><b>즉시 실행</b> → 동작 <b>"URL 열기"</b> → 위와 같은 주소</li>
+      </ol>
+      <p class="hint">알림만 받고 앱은 나중에 열고 싶으면, "URL 열기" 대신 <b>"알림 표시"</b>를 넣고
+        내용에 "주차 기록하기"라고 적어 두세요. 도착 감지는 iOS가 하므로 앱이 꺼져 있어도 옵니다.</p>
+      <p class="hint" style="margin-top:6px">차를 탈 때(블루투스 <b>연결될 때</b>) 자동으로 출차 처리하려면
+        아래 주소를 쓰세요.</p>
+      <div class="urlbox"><code id="url-depart"></code><button id="copy-depart">복사</button></div>
+    </div>
+
     <div class="card about" style="padding:16px;margin-bottom:10px">
       <p><b>기록은 이 폰에만 저장됩니다.</b> 서버로 아무것도 보내지 않습니다. 사파리 데이터를 지우면
         기록도 함께 사라집니다.</p>
@@ -377,7 +418,7 @@
         return d;
       }
     } catch (e) {}
-    return { lots: [], history: [], parking: null, a2hsDone: false };
+    return { lots: [], history: [], parking: null, a2hsDone: false, arriveHidden: null };
   }
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(db)); }
@@ -663,6 +704,7 @@
 
     renderChips();
     drawMap();
+    renderArrive();
   }
   function renderChips() {
     var box = $('chips');
@@ -1040,6 +1082,93 @@
   });
   $('apk').addEventListener('click', function () { window.open(APK, '_blank'); });
 
+  /* ── 단축어 딥링크 ─────────────────────────────────────
+     사파리는 차량 블루투스를 못 보지만 iOS 단축어 자동화는 볼 수 있다.
+     "블루투스 연결 해제 → URL 열기(?record=1)"로 만들어 두면 차에서 내리는 순간
+     iOS가 이 앱을 열고 기록 시트가 바로 뜬다. 위치(도착) 트리거도 같은 방식.  */
+  function baseUrl() {
+    return location.origin + location.pathname.replace(/[^/]*$/, '');
+  }
+  function initShortcutLinks() {
+    var r = baseUrl() + '?record=1', d = baseUrl() + '?depart=1';
+    $('url-record').textContent = r;
+    $('url-depart').textContent = d;
+    bindCopy('copy-record', r);
+    bindCopy('copy-depart', d);
+  }
+  function bindCopy(id, text) {
+    $(id).addEventListener('click', function () {
+      var done = function () { toast('주소를 복사했어요'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, fallback);
+      } else fallback();
+      function fallback() {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); }
+        catch (e) { toast('길게 눌러 복사해주세요'); }
+        document.body.removeChild(ta);
+      }
+    });
+  }
+  function handleDeepLink() {
+    var q = location.search;
+    if (/[?&]record=1/.test(q)) {
+      // 차에서 내렸다 — 바로 기록 시트
+      cleanUrl();
+      setTimeout(openSheet, 120);
+      return;
+    }
+    if (/[?&]depart=1/.test(q)) {
+      cleanUrl();
+      if (!db.parking) { toast('기록된 주차가 없어요'); return; }
+      var ended = db.parking;
+      pushHistory(ended, Date.now());
+      db.parking = null; save(); renderHome();
+      // 실수로 열렸을 수 있으니 되돌릴 기회를 준다
+      picker({
+        title: '출차로 기록했어요',
+        options: [
+          { label: '확인', value: 'ok' },
+          { label: '되돌리기 — 계속 주차 중이에요', value: 'undo' }
+        ],
+        onPick: function (v) {
+          if (v !== 'undo') return;
+          db.history = db.history.filter(function (h) { return h.at !== ended.at; });
+          db.parking = ended; save(); renderHome();
+          toast('되돌렸어요');
+        }
+      });
+    }
+  }
+  function cleanUrl() {
+    if (history.replaceState) history.replaceState(null, '', baseUrl());
+  }
+
+  /* ── 도착 배너 — 등록한 주차장 근처인데 아직 기록이 없을 때 ── */
+  function renderArrive() {
+    var box = $('arrive');
+    if (db.parking || !myPos || db.arriveHidden === todayKey()) { box.hidden = true; return; }
+    var near = nearestLot(myPos);
+    if (!near) { box.hidden = true; return; }
+    $('arrive-t').innerHTML = '<b>' + escapeHtml(near.name) + '</b> 주차장이에요 — 지금 기록할까요?';
+    box.hidden = false;
+  }
+  function todayKey() {
+    var d = new Date();
+    return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+  }
+  function escapeHtml(t) {
+    return String(t).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  $('arrive-go').addEventListener('click', function () { $('arrive').hidden = true; openSheet(); });
+  $('arrive-x').addEventListener('click', function () {
+    $('arrive').hidden = true; db.arriveHidden = todayKey(); save();
+  });
+
   /* ── 홈 화면에 추가 안내 ───────────────────────────── */
   var standalone = window.navigator.standalone === true ||
     window.matchMedia('(display-mode: standalone)').matches;
@@ -1049,8 +1178,10 @@
   });
 
   /* ── 시작 ──────────────────────────────────────────── */
+  initShortcutLinks();
   renderHome();
-  locateOnce();
+  handleDeepLink();
+  locateOnce(function () { renderArrive(); });
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) { renderHome(); }
   });
