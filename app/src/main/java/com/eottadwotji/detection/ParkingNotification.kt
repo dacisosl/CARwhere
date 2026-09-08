@@ -199,8 +199,19 @@ object ParkingNotification {
         val nm = context.getSystemService(NotificationManager::class.java)
         // 하차 헤드업이 남아 있으면 정리
         nm.cancel(POPUP_NOTIFICATION_ID)
+
+        // v5.7: 이 위치는 상태바를 안 쓰기로 했으면 캡슐을 올리지 않는다.
+        // (좌표가 늦게 와서 위치가 나중에 매칭되면 syncParkedNotification이 다시 판단한다)
+        if (!statusBarAllowedHere(context)) {
+            nm.cancel(PARKED_NOTIFICATION_ID)
+            return
+        }
         nm.notify(PARKED_NOTIFICATION_ID, buildParkedNotification(context, floor, startedAtMs))
     }
+
+    /** 현재 주차 위치가 상태바 표시를 허용하는가 (등록 안 된 위치는 항상 허용) */
+    private fun statusBarAllowedHere(context: Context): Boolean =
+        com.eottadwotji.data.ParkingStore(context).currentLot()?.showStatusBar ?: true
 
     internal fun buildParkedNotification(
         context: Context,

@@ -184,7 +184,9 @@ private fun LotRow(lot: ParkingLotProfile, active: Boolean, onClick: () -> Unit)
                 listOfNotNull(
                     lotFloorsSummary(lot.floors),
                     if (lot.latitude != null) "위치 등록됨" else "위치 미등록",
-                    lot.lastFloor?.let { "지난번 $it" }
+                    lot.lastFloor?.let { "지난번 $it" },
+                    // 왜 상태바에 안 뜨는지 목록에서 바로 알 수 있게 (v5.7)
+                    if (!lot.showStatusBar) "상태바 꺼짐" else null
                 ).joinToString(" · "),
                 style = AppType.Hint,
                 color = Concrete.TextDim

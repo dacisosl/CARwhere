@@ -205,6 +205,8 @@ class ParkingDetectionService : Service(), SensorEventListener {
             if (store.hasActiveParking() && store.currentFloor() == null) {
                 store.estimatedFloor = estimateFloorFromPressure(store)
             }
+            // 좌표로 위치가 매칭됐다 → 그 위치의 상태바 설정을 반영해 캡슐을 다시 판단 (v5.7)
+            ParkingNotification.syncParkedNotification(this)
             stopPressureSampling()
             stopIfNothingToShow()
         }

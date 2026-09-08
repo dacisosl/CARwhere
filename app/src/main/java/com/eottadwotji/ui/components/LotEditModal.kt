@@ -26,6 +26,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -86,6 +88,8 @@ fun LotEditModal(
         mutableStateOf(profile?.floors?.toSet() ?: ParkingLotProfile.DEFAULT_FLOORS.toSet())
     }
     var sheetMode by remember { mutableStateOf(profile?.sheetMode) } // null = 기본값 따름
+    // v5.7: 이 위치에서 상태바 캡슐을 띄울지 (기본 켜짐)
+    var showStatusBar by remember { mutableStateOf(profile?.showStatusBar ?: true) }
     var lat by remember { mutableStateOf(profile?.latitude) }
     var lon by remember { mutableStateOf(profile?.longitude) }
     var locationStatus by remember { mutableStateOf<String?>(null) }
@@ -105,7 +109,8 @@ fun LotEditModal(
                 lastFloor = profile?.lastFloor,
                 sheetMode = sheetMode,
                 pressureOffsetFloors = profile?.pressureOffsetFloors ?: 0,
-                pressureCalibrated = profile?.pressureCalibrated ?: false
+                pressureCalibrated = profile?.pressureCalibrated ?: false,
+                showStatusBar = showStatusBar
             )
         )
         onDismiss()
@@ -217,6 +222,42 @@ fun LotEditModal(
                             candidates = ParkingLotProfile.sortFloors(candidates + next)
                         }
                     )
+
+                    // 이 위치에서 상태바 캡슐을 띄울지 (v5.7) — 집처럼 안 헷갈리는 곳은 끈다
+                    Text("상태바", style = AppType.SectionLabel, color = Concrete.TextSub)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showStatusBar = !showStatusBar }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "상태바에 층수 표시",
+                                style = AppType.Body,
+                                color = Concrete.TextMain
+                            )
+                            Text(
+                                if (showStatusBar) "이 위치에 주차하면 상태바에 층수가 뜹니다"
+                                else "이 위치에서는 상태바·알림을 띄우지 않습니다",
+                                style = AppType.Hint,
+                                color = Concrete.TextDim
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Switch(
+                            checked = showStatusBar,
+                            onCheckedChange = { showStatusBar = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Concrete.NeonDeep,
+                                checkedTrackColor = Concrete.Neon,
+                                uncheckedThumbColor = Concrete.TextDim,
+                                uncheckedTrackColor = Concrete.BgPanel,
+                                uncheckedBorderColor = Concrete.Border
+                            )
+                        )
+                    }
 
                     // 이 위치의 바텀시트 모드 (기본값 따름 / 층수만 / 층+메모 / 층+사진)
                     Text("바텀시트", style = AppType.SectionLabel, color = Concrete.TextSub)

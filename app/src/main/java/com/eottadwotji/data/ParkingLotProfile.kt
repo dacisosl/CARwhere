@@ -34,7 +34,13 @@ data class ParkingLotProfile(
      * v3.9: 이 위치에서 기압 추정을 사용자가 한 번이라도 확인/보정했는가.
      * false면 "첫 확인" 엄격 모드 — 확인 카드 1회 강제. true면 조용히 유지.
      */
-    val pressureCalibrated: Boolean = false
+    val pressureCalibrated: Boolean = false,
+    /**
+     * v5.7: 이 위치에 주차했을 때 상태바 캡슐을 띄울지 (기본 켜짐).
+     * 집처럼 안 헷갈리는 곳에서는 상태바를 비워 두고 싶다는 요청 — 위치별로 끈다.
+     * 알림창 캡슐도 함께 사라진다 (같은 알림이라서).
+     */
+    val showStatusBar: Boolean = true
 ) {
 
     /** 좌표가 이 주차장 반경(150m) 안인지 판정 */
@@ -54,6 +60,8 @@ data class ParkingLotProfile(
         if (sheetMode != null) put("sheetMode", sheetMode)
         if (pressureOffsetFloors != 0) put("pressureOffset", pressureOffsetFloors)
         if (pressureCalibrated) put("pCal", true)
+        // 기본값(true)일 때는 쓰지 않는다 — 기존 저장 데이터가 그대로 기본값을 따르게
+        if (!showStatusBar) put("statusBar", false)
     }
 
     companion object {
@@ -105,7 +113,8 @@ data class ParkingLotProfile(
                 lastFloor = json.optString("lastFloor").ifEmpty { null },
                 sheetMode = json.optString("sheetMode").ifEmpty { null },
                 pressureOffsetFloors = json.optInt("pressureOffset", 0),
-                pressureCalibrated = json.optBoolean("pCal", false)
+                pressureCalibrated = json.optBoolean("pCal", false),
+                showStatusBar = json.optBoolean("statusBar", true)
             )
         }
 
