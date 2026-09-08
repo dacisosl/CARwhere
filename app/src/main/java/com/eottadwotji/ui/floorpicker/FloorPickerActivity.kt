@@ -221,6 +221,9 @@ class FloorPickerActivity : ComponentActivity() {
         var memo by remember { mutableStateOf(store.currentMemo() ?: "") }
         // v5.8: 상태바 알약 스위치 — 등록된 위치면 그 위치 설정, 새 위치(미등록)면 꺼짐이 기본.
         // 사용자가 건드리기 전까지는 위치가 뒤늦게 매칭돼도(좌표 폴링) 그 위치 설정을 따라간다
+        // v5.9: 위치가 "정해졌다"고 볼 수 있는 때 — 매칭됐거나, 폴링이 어떤 이유로든 끝났거나
+        // (그 뒤에 매칭이 없으면 미등록 새 위치로 확정). 상태바 스위치는 그때까지 회색이다.
+        var lotResolved by remember { mutableStateOf(lot != null || store.parkingStatusBar != null) }
         var statusBarTouched by remember { mutableStateOf(false) }
         var statusBar by remember { mutableStateOf(store.parkingStatusBar ?: (lot?.showStatusBar ?: false)) }
         LaunchedEffect(lot, lotResolved) {
@@ -236,9 +239,6 @@ class FloorPickerActivity : ComponentActivity() {
 
         // 수동 기록은 좌표 조회가 비동기 → 매칭될 때까지 잠시 폴링 (최대 ~2.4초).
         // 등록된 위치로 판명되면 그 위치의 층 구성으로 바뀐다.
-        // v5.9: 위치가 "정해졌다"고 볼 수 있는 때 — 매칭됐거나, 폴링이 어떤 이유로든 끝났거나
-        // (그 뒤에 매칭이 없으면 미등록 새 위치로 확정). 상태바 스위치는 그때까지 회색이다.
-        var lotResolved by remember { mutableStateOf(lot != null || store.parkingStatusBar != null) }
         LaunchedEffect(Unit) {
             try {
                 if (lot != null) return@LaunchedEffect
