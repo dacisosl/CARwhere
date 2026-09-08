@@ -99,6 +99,18 @@ class ParkingStore(context: Context) {
 
     // ── 현재 주차 세션 ──────────────────────────────────────
 
+    /**
+     * v5.8: 이번 주차에서 상태바 캡슐을 띄울지 — 기록 시트의 알약 스위치 값.
+     * null이면 아직 고르지 않은 것: 등록된 위치면 그 위치의 설정, 미등록이면 꺼짐.
+     */
+    var parkingStatusBar: Boolean?
+        get() = if (prefs.contains(KEY_PARKING_STATUSBAR)) prefs.getBoolean(KEY_PARKING_STATUSBAR, false) else null
+        set(value) {
+            val e = prefs.edit()
+            if (value == null) e.remove(KEY_PARKING_STATUSBAR) else e.putBoolean(KEY_PARKING_STATUSBAR, value)
+            e.apply()
+        }
+
     fun startParking(timestampMs: Long, manual: Boolean = false) {
         prefs.edit()
             .putLong(KEY_PARKING_STARTED_AT, timestampMs)
@@ -113,6 +125,7 @@ class ParkingStore(context: Context) {
             .remove(KEY_PARKING_PHOTO)
             .remove(KEY_ESTIMATED_FLOOR)
             .remove(KEY_PARKING_ADDRESS)
+            .remove(KEY_PARKING_STATUSBAR)
             .apply()
     }
 
@@ -340,6 +353,7 @@ class ParkingStore(context: Context) {
         private const val KEY_PROFILES = "profiles_json"
         private const val KEY_PRESSURE_AUTO = "pressure_auto_detect"
         private const val KEY_ESTIMATED_FLOOR = "estimated_floor"
+        private const val KEY_PARKING_STATUSBAR = "parking_statusbar"
         private const val KEY_APP_ICON_CAR = "app_icon_car"
         private const val KEY_APP_ICON_COLOR = "app_icon_color"
         private const val KEY_THEME_MODE = "theme_mode"

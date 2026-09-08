@@ -209,9 +209,17 @@ object ParkingNotification {
         nm.notify(PARKED_NOTIFICATION_ID, buildParkedNotification(context, floor, startedAtMs))
     }
 
-    /** 현재 주차 위치가 상태바 표시를 허용하는가 (등록 안 된 위치는 항상 허용) */
-    private fun statusBarAllowedHere(context: Context): Boolean =
-        com.eottadwotji.data.ParkingStore(context).currentLot()?.showStatusBar ?: true
+    /**
+     * 이번 주차에 상태바 캡슐을 띄우는가 (v5.8).
+     *   ① 기록 시트에서 알약 스위치로 고른 값이 있으면 그것
+     *   ② 없으면 등록된 위치의 설정 (기본 켜짐)
+     *   ③ 등록 안 된 새 위치면 꺼짐 — 처음 온 곳은 상태바가 필요 없다는 판단 (사용자 요청)
+     */
+    fun statusBarAllowedHere(context: Context): Boolean {
+        val store = com.eottadwotji.data.ParkingStore(context)
+        store.parkingStatusBar?.let { return it }
+        return store.currentLot()?.showStatusBar ?: false
+    }
 
     internal fun buildParkedNotification(
         context: Context,

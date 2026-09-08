@@ -47,6 +47,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -217,6 +219,13 @@ class FloorPickerActivity : ComponentActivity() {
             mutableIntStateOf(if (idx >= 0) idx else floors.size / 2)
         }
         var memo by remember { mutableStateOf(store.currentMemo() ?: "") }
+        // v5.8: 상태바 알약 스위치 — 등록된 위치면 그 위치 설정, 새 위치(미등록)면 꺼짐이 기본.
+        // 사용자가 건드리기 전까지는 위치가 뒤늦게 매칭돼도(좌표 폴링) 그 위치 설정을 따라간다
+        var statusBarTouched by remember { mutableStateOf(false) }
+        var statusBar by remember { mutableStateOf(store.parkingStatusBar ?: (lot?.showStatusBar ?: false)) }
+        LaunchedEffect(lot) {
+            if (!statusBarTouched && store.parkingStatusBar == null) statusBar = lot?.showStatusBar ?: false
+        }
         var photoUri by remember { mutableStateOf(store.photoUri) }
         var savedFloor by remember { mutableStateOf<String?>(null) }
 
@@ -273,6 +282,7 @@ class FloorPickerActivity : ComponentActivity() {
             store.setFloor(floor)
             store.rememberFloorForCurrentLocation(floor)
             if (memo.isNotBlank()) store.setMemo(memo.trim())
+            store.parkingStatusBar = statusBar // 알약 스위치 값 — 캡슐 게시 여부를 결정한다
             ParkingNotification.showParkedNotification(
                 context, floor, startedAtMs = store.parkingStartedAt()
             )
@@ -348,6 +358,8 @@ class FloorPickerActivity : ComponentActivity() {
                                 }
                             },
                             onSave = saveParking,
+                            statusBar = statusBar,
+                            onStatusBar = { interacted = true; statusBarTouched = true; statusBar = it },
                             // v5.2: 조작 안내 문구는 삭제. 기압 추정 경고만 남긴다 (안전 문구)
                             warning = if (strictEstimate)
                                 "기압 추정 첫 확인이에요 — 높이에 따라 다를 수 있으니 꼭 확인하세요"
@@ -468,6 +480,7 @@ private fun SheetTitle(title: String, onBack: (() -> Unit)?) {
  * 기록 카드 — 스케치 + v5.3 격자 배치.
  * 헤더: "위치정보" + 위치 칩 / "⊕ 위치 등록" …… [📷 사진]   (모두 34dp 높이)
  * 본문: ◁ [층] ▷ 56dp 한 줄 + 캡션 한 줄, 오른쪽에 두 줄 높이의 [주차] / 메모 한 줄
+ * 하단: "상태바에 층수 표시" 알약 스위치 (v5.8 — 등록 위치는 그 설정, 새 위치는 꺼짐 기본)
  */
 @Composable
 private fun RecordCard(
@@ -482,6 +495,8 @@ private fun RecordCard(
     onPhoto: () -> Unit,
     onLocationTap: () -> Unit,
     onSave: () -> Unit,
+    statusBar: Boolean,
+    onStatusBar: (Boolean) -> Unit,
     warning: String?
 ) {
     val index = floorIndex.coerceIn(0, floors.size - 1)
@@ -624,6 +639,38 @@ private fun RecordCard(
 
         // ── 메모 한 줄 (음성 입력) ──
         MemoField(value = memo, onChange = onMemo, onDone = onSave)
+
+        // ── 상태바 알약 스위치 (v5.8) — 이번 주차에 상태바 캡슐을 띄울지 ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onStatusBar(!statusBar) },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "상태바에 층수 표시",
+                style = AppType.BodySmall,
+                color = Concrete.TextBody,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                if (statusBar) "켜짐" else "꺼짐",
+                style = AppType.Hint,
+                color = if (statusBar) Concrete.Neon else Concrete.TextDim
+            )
+            Spacer(Modifier.width(8.dp))
+            Switch(
+                checked = statusBar,
+                onCheckedChange = onStatusBar,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Concrete.NeonDeep,
+                    checkedTrackColor = Concrete.Neon,
+                    uncheckedThumbColor = Concrete.TextDim,
+                    uncheckedTrackColor = Concrete.BgPanel,
+                    uncheckedBorderColor = Concrete.Border
+                )
+            )
+        }
 
         warning?.let {
             Text(
