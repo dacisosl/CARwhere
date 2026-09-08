@@ -95,7 +95,7 @@ import java.util.UUID
  *          ◁   ┌ B1 ┐   ▷              ┌ 주차 ┐
  *   메모 ___________________________________ 🎤
  *
- * - 층은 ◁ ▷ 스테퍼로 고른다 (◁ 위층, ▷ 아래층). 기압 추정·지난번 층이 초기값.
+ * - 층은 ◁ ▷ 스테퍼로 고른다 (v5.9: ◁ 아래층, ▷ 위층 — 왼쪽이 작아지는 쪽). 기압 추정·지난번 층이 초기값.
  *   층 박스는 상태바 아이콘과 같은 조형의 표지판 (v5.3부터 바탕은 시그니처 그린).
  * - v5.2 배치: 가장 중요한 [주차]가 큰 자리(오른쪽 사각)로 오고, 사진은 헤더의 작은
  *   카메라 버튼으로 갔다. 찍으면 헤더 버튼에 썸네일이 들어간다.
@@ -223,7 +223,7 @@ class FloorPickerActivity : ComponentActivity() {
         // 사용자가 건드리기 전까지는 위치가 뒤늦게 매칭돼도(좌표 폴링) 그 위치 설정을 따라간다
         var statusBarTouched by remember { mutableStateOf(false) }
         var statusBar by remember { mutableStateOf(store.parkingStatusBar ?: (lot?.showStatusBar ?: false)) }
-        LaunchedEffect(lot) {
+        LaunchedEffect(lot, lotResolved) {
             if (!statusBarTouched && store.parkingStatusBar == null) statusBar = lot?.showStatusBar ?: false
         }
         var photoUri by remember { mutableStateOf(store.photoUri) }
@@ -236,16 +236,23 @@ class FloorPickerActivity : ComponentActivity() {
 
         // 수동 기록은 좌표 조회가 비동기 → 매칭될 때까지 잠시 폴링 (최대 ~2.4초).
         // 등록된 위치로 판명되면 그 위치의 층 구성으로 바뀐다.
+        // v5.9: 위치가 "정해졌다"고 볼 수 있는 때 — 매칭됐거나, 폴링이 어떤 이유로든 끝났거나
+        // (그 뒤에 매칭이 없으면 미등록 새 위치로 확정). 상태바 스위치는 그때까지 회색이다.
+        var lotResolved by remember { mutableStateOf(lot != null || store.parkingStatusBar != null) }
         LaunchedEffect(Unit) {
-            if (lot != null) return@LaunchedEffect
-            repeat(LOT_RECHECK_TRIES) {
-                delay(LOT_RECHECK_MS)
-                if (interacted || savedFloor != null) return@LaunchedEffect
-                val matched = store.currentLot()
-                if (matched != null) {
-                    lot = matched
-                    return@LaunchedEffect
+            try {
+                if (lot != null) return@LaunchedEffect
+                repeat(LOT_RECHECK_TRIES) {
+                    delay(LOT_RECHECK_MS)
+                    if (interacted || savedFloor != null) return@LaunchedEffect
+                    val matched = store.currentLot()
+                    if (matched != null) {
+                        lot = matched
+                        return@LaunchedEffect
+                    }
                 }
+            } finally {
+                lotResolved = true
             }
         }
 
@@ -359,6 +366,7 @@ class FloorPickerActivity : ComponentActivity() {
                             },
                             onSave = saveParking,
                             statusBar = statusBar,
+                            statusBarPending = !(lotResolved || lot != null),
                             onStatusBar = { interacted = true; statusBarTouched = true; statusBar = it },
                             // v5.2: 조작 안내 문구는 삭제. 기압 추정 경고만 남긴다 (안전 문구)
                             warning = if (strictEstimate)
@@ -496,6 +504,8 @@ private fun RecordCard(
     onLocationTap: () -> Unit,
     onSave: () -> Unit,
     statusBar: Boolean,
+    /** 위치가 아직 안 정해져(좌표 대기) 기본값을 모르는 동안 — 스위치를 회색으로 잠근다 */
+    statusBarPending: Boolean,
     onStatusBar: (Boolean) -> Unit,
     warning: String?
 ) {
@@ -563,11 +573,12 @@ private fun RecordCard(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // v5.9: 왼쪽이 아래층(작아지는 쪽), 오른쪽이 위층(커지는 쪽) — 슬라이더처럼 읽힌다
                     StepArrow(
                         symbol = "◁",
-                        tone = Concrete.StepUp,
-                        enabled = index > 0,
-                        onClick = { onFloorIndex(index - 1) }
+                        tone = Concrete.StepDown,
+                        enabled = index < floors.size - 1,
+                        onClick = { onFloorIndex(index + 1) }
                     )
                     Box(
                         modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
@@ -585,9 +596,9 @@ private fun RecordCard(
                     }
                     StepArrow(
                         symbol = "▷",
-                        tone = Concrete.StepDown,
-                        enabled = index < floors.size - 1,
-                        onClick = { onFloorIndex(index + 1) }
+                        tone = Concrete.StepUp,
+                        enabled = index > 0,
+                        onClick = { onFloorIndex(index - 1) }
                     )
                 }
                 Spacer(Modifier.height(6.dp))
@@ -596,9 +607,9 @@ private fun RecordCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     StepCaption(
-                        "위층",
-                        tone = Concrete.StepUp,
-                        enabled = index > 0,
+                        "아래층",
+                        tone = Concrete.StepDown,
+                        enabled = index < floors.size - 1,
                         modifier = Modifier.width(STEP_ARROW_WIDTH)
                     )
                     // 가운데 캡션(지난번·기압 추정)은 보조 문구라 강조하지 않는다
@@ -612,9 +623,9 @@ private fun RecordCard(
                         modifier = Modifier.weight(1f)
                     )
                     StepCaption(
-                        "아래층",
-                        tone = Concrete.StepDown,
-                        enabled = index < floors.size - 1,
+                        "위층",
+                        tone = Concrete.StepUp,
+                        enabled = index > 0,
                         modifier = Modifier.width(STEP_ARROW_WIDTH)
                     )
                 }
@@ -644,30 +655,38 @@ private fun RecordCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onStatusBar(!statusBar) },
+                .clickable(enabled = !statusBarPending) { onStatusBar(!statusBar) },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 "상태바에 층수 표시",
                 style = AppType.BodySmall,
-                color = Concrete.TextBody,
+                color = if (statusBarPending) Concrete.TextDim else Concrete.TextBody,
                 modifier = Modifier.weight(1f)
             )
             Text(
-                if (statusBar) "켜짐" else "꺼짐",
+                when {
+                    statusBarPending -> "위치 확인 중…"
+                    statusBar -> "켜짐"
+                    else -> "꺼짐"
+                },
                 style = AppType.Hint,
-                color = if (statusBar) Concrete.Neon else Concrete.TextDim
+                color = if (statusBar && !statusBarPending) Concrete.Neon else Concrete.TextDim
             )
             Spacer(Modifier.width(8.dp))
             Switch(
-                checked = statusBar,
+                checked = statusBar && !statusBarPending,
                 onCheckedChange = onStatusBar,
+                enabled = !statusBarPending,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Concrete.NeonDeep,
                     checkedTrackColor = Concrete.Neon,
                     uncheckedThumbColor = Concrete.TextDim,
                     uncheckedTrackColor = Concrete.BgPanel,
-                    uncheckedBorderColor = Concrete.Border
+                    uncheckedBorderColor = Concrete.Border,
+                    disabledUncheckedThumbColor = Concrete.Border,
+                    disabledUncheckedTrackColor = Concrete.BgPanel,
+                    disabledUncheckedBorderColor = Concrete.Border
                 )
             )
         }
